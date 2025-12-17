@@ -92,9 +92,14 @@ async def execute_task(
             "message": "Task queued for execution"
         }
 
+    except (AttributeError, KeyError, TypeError, ValueError) as e:
+        # Expected errors during task queueing
+        logger.warning(f"Task queueing error (expected): {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error queuing task: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error queuing task: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 async def _execute_task_background(
@@ -183,9 +188,23 @@ async def _execute_task_background(
 
         await ws_manager.broadcast_task_complete(task_id, False, error=error_msg)
 
+    except (AttributeError, KeyError, TypeError) as e:
+        # Expected errors during task execution (e.g., task_store access)
+        error_msg = f"Task execution error: {e}"
+        logger.warning(error_msg)
+
+        tasks_store[task_id].update({
+            "status": "failed",
+            "error": error_msg,
+            "completed_at": asyncio.get_event_loop().time()
+        })
+
+        await ws_manager.broadcast_task_complete(task_id, False, error=error_msg)
+
     except Exception as e:
+        # Unexpected error - log with full traceback
         error_msg = f"Unexpected error: {e}"
-        logger.error(error_msg)
+        logger.exception(error_msg)
 
         tasks_store[task_id].update({
             "status": "failed",

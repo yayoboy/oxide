@@ -6,6 +6,7 @@ Handles WebSocket connections and broadcasts events to connected clients.
 import asyncio
 from typing import List, Dict, Any
 from fastapi import WebSocket
+from fastapi.websockets import WebSocketDisconnect
 import json
 
 from ...utils.logging import logger
@@ -66,8 +67,15 @@ class WebSocketManager:
         """
         try:
             await websocket.send_json(message)
+        except (WebSocketDisconnect, ConnectionError, RuntimeError) as e:
+            # Expected WebSocket communication errors
+            self.logger.debug(f"Client disconnected or connection error: {e}")
+        except (TypeError, ValueError, json.JSONDecodeError) as e:
+            # Expected serialization errors
+            self.logger.warning(f"Message serialization error: {e}")
         except Exception as e:
-            self.logger.error(f"Error sending personal message: {e}")
+            # Unexpected error
+            self.logger.exception(f"Unexpected error sending personal message: {e}")
 
     async def broadcast(self, message: Dict[str, Any]):
         """
@@ -81,8 +89,17 @@ class WebSocketManager:
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
+            except (WebSocketDisconnect, ConnectionError, RuntimeError) as e:
+                # Expected WebSocket communication errors - client disconnected
+                self.logger.debug(f"Client disconnected during broadcast: {e}")
+                disconnected.append(connection)
+            except (TypeError, ValueError, json.JSONDecodeError) as e:
+                # Expected serialization errors
+                self.logger.warning(f"Message serialization error during broadcast: {e}")
+                disconnected.append(connection)
             except Exception as e:
-                self.logger.error(f"Error broadcasting to client: {e}")
+                # Unexpected error
+                self.logger.exception(f"Unexpected error broadcasting to client: {e}")
                 disconnected.append(connection)
 
         # Remove disconnected clients

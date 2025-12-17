@@ -89,10 +89,25 @@ async def get_metrics(orchestrator: Orchestrator = Depends(get_orchestrator)) ->
             "timestamp": asyncio.get_event_loop().time()
         }
 
-    except Exception as e:
-        logger.error(f"Error getting metrics: {e}")
+    except (AttributeError, KeyError, TypeError) as e:
+        # Expected errors when services/tasks not properly initialized
+        logger.warning(f"Metrics collection error (expected): {e}")
         return {
             "error": str(e),
+            "timestamp": asyncio.get_event_loop().time()
+        }
+    except OSError as e:
+        # Expected system resource access errors
+        logger.warning(f"System metrics error: {e}")
+        return {
+            "error": f"System metrics unavailable: {str(e)}",
+            "timestamp": asyncio.get_event_loop().time()
+        }
+    except Exception as e:
+        # Unexpected error
+        logger.exception(f"Unexpected error getting metrics: {e}")
+        return {
+            "error": f"Unexpected error: {str(e)}",
             "timestamp": asyncio.get_event_loop().time()
         }
 
@@ -148,9 +163,14 @@ async def get_stats(orchestrator: Orchestrator = Depends(get_orchestrator)) -> D
             "failed": failed
         }
 
-    except Exception as e:
-        logger.error(f"Error getting stats: {e}")
+    except (AttributeError, KeyError, TypeError, ZeroDivisionError) as e:
+        # Expected errors during stats calculation
+        logger.warning(f"Stats calculation error (expected): {e}")
         return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        logger.exception(f"Unexpected error getting stats: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
 
 
 @router.get("/health")
@@ -189,11 +209,21 @@ async def health_check() -> Dict[str, Any]:
             "timestamp": asyncio.get_event_loop().time()
         }
 
-    except Exception as e:
-        logger.error(f"Health check error: {e}")
+    except OSError as e:
+        # Expected system resource access errors
+        logger.warning(f"Health check system error: {e}")
         return {
             "status": "error",
             "healthy": False,
-            "issues": [str(e)],
+            "issues": [f"System metrics unavailable: {str(e)}"],
+            "timestamp": asyncio.get_event_loop().time()
+        }
+    except Exception as e:
+        # Unexpected error
+        logger.exception(f"Unexpected health check error: {e}")
+        return {
+            "status": "error",
+            "healthy": False,
+            "issues": [f"Unexpected error: {str(e)}"],
             "timestamp": asyncio.get_event_loop().time()
         }

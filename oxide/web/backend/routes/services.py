@@ -43,9 +43,14 @@ async def list_services(orchestrator: Orchestrator = Depends(get_orchestrator)) 
             "healthy": sum(1 for s in status.values() if s.get("healthy"))
         }
 
+    except (AttributeError, KeyError, TypeError) as e:
+        # Expected errors when orchestrator not properly initialized
+        logger.warning(f"Service listing error (expected): {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error listing services: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error listing services: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 @router.get("/{service_name}")
@@ -82,9 +87,14 @@ async def get_service(
 
     except HTTPException:
         raise
+    except (AttributeError, KeyError) as e:
+        # Expected errors accessing adapter or its methods
+        logger.warning(f"Service access error for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error getting service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error getting service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 @router.post("/{service_name}/health")
@@ -114,9 +124,14 @@ async def check_service_health(
 
     except HTTPException:
         raise
+    except (AttributeError, KeyError) as e:
+        # Expected errors accessing health check
+        logger.warning(f"Health check access error for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error checking health for {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error checking health for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 @router.post("/{service_name}/test")
@@ -149,9 +164,14 @@ async def test_service(
 
     except HTTPException:
         raise
+    except (AttributeError, KeyError, TypeError) as e:
+        # Expected errors during service test
+        logger.warning(f"Service test error for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error testing service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error testing service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 @router.get("/{service_name}/models")
@@ -182,9 +202,14 @@ async def get_service_models(
 
     except HTTPException:
         raise
+    except (AttributeError, KeyError) as e:
+        # Expected errors accessing adapter models
+        logger.warning(f"Model access error for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error getting models for {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error getting models for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
 
 
 @router.get("/routing/rules")
@@ -205,6 +230,11 @@ async def get_routing_rules(
             "total": len(rules)
         }
 
+    except (AttributeError, KeyError, TypeError) as e:
+        # Expected errors accessing routing rules
+        logger.warning(f"Routing rules access error: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error getting routing rules: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected error
+        logger.exception(f"Unexpected error getting routing rules: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") from e
