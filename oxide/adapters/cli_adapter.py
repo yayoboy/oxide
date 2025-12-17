@@ -91,8 +91,12 @@ class CLIAdapter(BaseAdapter):
             )
         except CLIAdapterError:
             raise
+        except (asyncio.TimeoutError, OSError, PermissionError, ProcessLookupError) as e:
+            # Expected process/system errors
+            raise CLIAdapterError(f"Process execution error: {e}") from e
         except Exception as e:
-            raise CLIAdapterError(f"Unexpected error during execution: {e}")
+            # Unexpected error
+            raise CLIAdapterError(f"Unexpected error during execution: {e}") from e
 
     async def _build_command(
         self,
@@ -215,6 +219,11 @@ class CLIAdapter(BaseAdapter):
 
         except (FileNotFoundError, asyncio.TimeoutError):
             return False
+        except (OSError, PermissionError, ProcessLookupError) as e:
+            # Expected system/process errors
+            self.logger.debug(f"Health check failed (expected): {e}")
+            return False
         except Exception as e:
-            self.logger.warning(f"Health check failed: {e}")
+            # Unexpected error
+            self.logger.warning(f"Health check failed unexpectedly: {e}")
             return False

@@ -253,7 +253,11 @@ class TaskClassifier:
                 path = Path(file_path).expanduser().resolve()
                 if path.exists() and path.is_file():
                     total += path.stat().st_size
+            except (OSError, PermissionError, FileNotFoundError) as e:
+                # Expected file system errors
+                self.logger.debug(f"Cannot get size of {file_path}: {e}")
             except Exception as e:
-                self.logger.warning(f"Cannot get size of {file_path}: {e}")
+                # Unexpected error
+                self.logger.warning(f"Unexpected error getting size of {file_path}: {e}")
 
         return total

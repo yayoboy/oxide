@@ -11,6 +11,11 @@ from mcp.types import TextContent
 from ..core.orchestrator import Orchestrator
 from ..execution.parallel import ParallelExecutor
 from ..utils.logging import logger
+from ..utils.exceptions import (
+    NoServiceAvailableError,
+    ServiceUnavailableError,
+    ExecutionError
+)
 
 
 class OxideTools:
@@ -80,9 +85,15 @@ class OxideTools:
 
             self.logger.info(f"route_task completed: {len(buffer)} chars")
 
+        except (NoServiceAvailableError, ServiceUnavailableError) as e:
+            # Expected service errors
+            error_msg = f"❌ Service Error: {str(e)}\n"
+            self.logger.warning(f"route_task service unavailable: {e}")
+            yield TextContent(type="text", text=error_msg)
         except Exception as e:
-            error_msg = f"❌ Error: {str(e)}\n"
-            self.logger.error(f"route_task failed: {e}")
+            # Unexpected error
+            error_msg = f"❌ Unexpected Error: {str(e)}\n"
+            self.logger.exception(f"route_task failed unexpectedly: {e}")
             yield TextContent(type="text", text=error_msg)
 
     async def analyze_parallel(
@@ -170,9 +181,20 @@ class OxideTools:
                 text=result.aggregated_text
             )
 
+        except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+            # Expected file system errors
+            error_msg = f"❌ File System Error: {str(e)}\n"
+            self.logger.warning(f"analyze_parallel file system error: {e}")
+            yield TextContent(type="text", text=error_msg)
+        except (ExecutionError, NoServiceAvailableError) as e:
+            # Expected execution errors
+            error_msg = f"❌ Execution Error: {str(e)}\n"
+            self.logger.warning(f"analyze_parallel execution failed: {e}")
+            yield TextContent(type="text", text=error_msg)
         except Exception as e:
-            error_msg = f"❌ Error during parallel analysis: {str(e)}\n"
-            self.logger.error(f"analyze_parallel failed: {e}")
+            # Unexpected error
+            error_msg = f"❌ Unexpected Error during parallel analysis: {str(e)}\n"
+            self.logger.exception(f"analyze_parallel failed unexpectedly: {e}")
             yield TextContent(type="text", text=error_msg)
 
     async def list_services(self) -> List[TextContent]:
@@ -235,9 +257,15 @@ class OxideTools:
 
             yield TextContent(type="text", text=output)
 
+        except (ServiceUnavailableError, ConnectionError, TimeoutError) as e:
+            # Expected service communication errors
+            error_msg = f"❌ Service Communication Error: {str(e)}\n"
+            self.logger.warning(f"list_services communication error: {e}")
+            yield TextContent(type="text", text=error_msg)
         except Exception as e:
-            error_msg = f"❌ Error listing services: {str(e)}\n"
-            self.logger.error(f"list_services failed: {e}")
+            # Unexpected error
+            error_msg = f"❌ Unexpected Error listing services: {str(e)}\n"
+            self.logger.exception(f"list_services failed unexpectedly: {e}")
             yield TextContent(type="text", text=error_msg)
 
     def _discover_files(self, directory: Path, max_files: int = 1000) -> List[str]:
@@ -283,7 +311,11 @@ class OxideTools:
                     if len(files) >= max_files:
                         break
 
+        except (OSError, PermissionError) as e:
+            # Expected file system errors
+            self.logger.warning(f"File system error discovering files: {e}")
         except Exception as e:
-            self.logger.warning(f"Error discovering files: {e}")
+            # Unexpected error
+            self.logger.exception(f"Unexpected error discovering files: {e}")
 
         return files

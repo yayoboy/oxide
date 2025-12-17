@@ -70,8 +70,12 @@ class Orchestrator:
                 self.adapters[service_name] = adapter
                 self.logger.info(f"Initialized adapter: {service_name}")
 
-            except Exception as e:
+            except (ValueError, ImportError, AttributeError) as e:
+                # Expected errors during adapter initialization
                 self.logger.error(f"Failed to initialize adapter '{service_name}': {e}")
+            except Exception as e:
+                # Unexpected error - log with more detail for debugging
+                self.logger.exception(f"Unexpected error initializing adapter '{service_name}': {e}")
 
     def _create_adapter(self, service_name: str, config: Dict[str, Any]) -> BaseAdapter:
         """
@@ -146,13 +150,20 @@ class Orchestrator:
 
             self.logger.info(f"Task completed successfully on {decision.primary_service}")
 
-        except NoServiceAvailableError as e:
-            self.logger.error(f"No service available: {e}")
+        except NoServiceAvailableError:
+            # No service available - re-raise as-is
+            self.logger.error("No service available for task")
             raise
 
-        except Exception as e:
+        except (ServiceUnavailableError, ExecutionError) as e:
+            # Service or execution errors - re-raise as ExecutionError
             self.logger.error(f"Task execution failed: {e}")
-            raise ExecutionError(f"Failed to execute task: {e}")
+            raise ExecutionError(f"Failed to execute task: {e}") from e
+
+        except Exception as e:
+            # Unexpected error - log with full traceback and wrap
+            self.logger.exception(f"Unexpected error during task execution: {e}")
+            raise ExecutionError(f"Unexpected failure executing task: {e}") from e
 
     async def _execute_with_retry(
         self,
@@ -239,8 +250,13 @@ class Orchestrator:
 
         try:
             return await adapter.health_check()
-        except Exception as e:
+        except (ServiceUnavailableError, TimeoutError, ConnectionError) as e:
+            # Expected health check failures
             self.logger.debug(f"Health check failed for {service_name}: {e}")
+            return False
+        except Exception as e:
+            # Unexpected error during health check
+            self.logger.warning(f"Unexpected error in health check for {service_name}: {e}")
             return False
 
     async def get_service_status(self) -> Dict[str, Any]:
@@ -303,10 +319,18 @@ class Orchestrator:
                 "response_length": len(response)
             }
 
-        except Exception as e:
+        except (ServiceUnavailableError, TimeoutError, ExecutionError) as e:
+            # Expected service test failures
             return {
                 "success": False,
                 "error": str(e)
+            }
+        except Exception as e:
+            # Unexpected error during test
+            self.logger.warning(f"Unexpected error testing {service_name}: {e}")
+            return {
+                "success": False,
+                "error": f"Unexpected error: {str(e)}"
             }
 
     def get_adapters_info(self) -> Dict[str, Any]:

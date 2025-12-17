@@ -202,8 +202,15 @@ class TaskRouter:
 
                 return is_healthy
 
+            except (ServiceUnavailableError, TimeoutError, ConnectionError) as e:
+                # Expected health check failures
+                self.logger.debug(f"Health check failed for '{service_name}': {e}")
+                # Cache negative result with shorter TTL for failures
+                self.health_cache.set_health(service_name, False, ttl=10.0)
+                return False
             except Exception as e:
-                self.logger.warning(f"Health check error for '{service_name}': {e}")
+                # Unexpected error during health check
+                self.logger.warning(f"Unexpected health check error for '{service_name}': {e}")
                 # Cache negative result with shorter TTL for failures
                 self.health_cache.set_health(service_name, False, ttl=10.0)
                 return False

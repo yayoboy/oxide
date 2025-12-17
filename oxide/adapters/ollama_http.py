@@ -117,8 +117,12 @@ class OllamaHTTPAdapter(BaseAdapter):
                 content = path.read_text(encoding="utf-8", errors="replace")
                 full_prompt += f"\n\n# File: {file_path}\n```\n{content}\n```\n\n"
 
+            except (OSError, PermissionError, UnicodeDecodeError) as e:
+                # Expected file system/encoding errors
+                self.logger.debug(f"Cannot read file {file_path}: {e}")
             except Exception as e:
-                self.logger.warning(f"Error reading file {file_path}: {e}")
+                # Unexpected error
+                self.logger.warning(f"Unexpected error reading file {file_path}: {e}")
 
         full_prompt += f"\n\n{prompt}"
         return full_prompt
@@ -176,9 +180,13 @@ class OllamaHTTPAdapter(BaseAdapter):
             )
         except asyncio.TimeoutError:
             raise TimeoutError(self.service_name, timeout or 0)
+        except (aiohttp.ClientError, ConnectionError) as e:
+            # Expected HTTP/network errors
+            raise HTTPAdapterError(f"HTTP request error: {e}") from e
         except Exception as e:
+            # Re-raise known exceptions, wrap unexpected ones
             if not isinstance(e, (HTTPAdapterError, ServiceUnavailableError, TimeoutError)):
-                raise HTTPAdapterError(f"Unexpected error: {e}")
+                raise HTTPAdapterError(f"Unexpected error: {e}") from e
             raise
 
     async def _execute_openai_compatible(
@@ -243,9 +251,13 @@ class OllamaHTTPAdapter(BaseAdapter):
             )
         except asyncio.TimeoutError:
             raise TimeoutError(self.service_name, timeout or 0)
+        except (aiohttp.ClientError, ConnectionError) as e:
+            # Expected HTTP/network errors
+            raise HTTPAdapterError(f"HTTP request error: {e}") from e
         except Exception as e:
+            # Re-raise known exceptions, wrap unexpected ones
             if not isinstance(e, (HTTPAdapterError, ServiceUnavailableError, TimeoutError)):
-                raise HTTPAdapterError(f"Unexpected error: {e}")
+                raise HTTPAdapterError(f"Unexpected error: {e}") from e
             raise
 
     async def health_check(self) -> bool:
@@ -263,8 +275,13 @@ class OllamaHTTPAdapter(BaseAdapter):
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     return response.status == 200
 
+        except (aiohttp.ClientError, ConnectionError, asyncio.TimeoutError) as e:
+            # Expected network/timeout errors
+            self.logger.debug(f"Health check failed (expected): {e}")
+            return False
         except Exception as e:
-            self.logger.debug(f"Health check failed: {e}")
+            # Unexpected error
+            self.logger.warning(f"Health check failed unexpectedly: {e}")
             return False
 
     async def get_models(self) -> List[str]:
@@ -288,8 +305,15 @@ class OllamaHTTPAdapter(BaseAdapter):
                             data = await response.json()
                             return [model["id"] for model in data.get("data", [])]
 
+        except (aiohttp.ClientError, ConnectionError, asyncio.TimeoutError) as e:
+            # Expected network/timeout errors
+            self.logger.debug(f"Failed to get models (network error): {e}")
+        except (json.JSONDecodeError, KeyError) as e:
+            # Expected JSON parsing errors
+            self.logger.warning(f"Failed to parse models response: {e}")
         except Exception as e:
-            self.logger.warning(f"Failed to get models: {e}")
+            # Unexpected error
+            self.logger.warning(f"Unexpected error getting models: {e}")
 
         return []
 
