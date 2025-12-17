@@ -191,7 +191,7 @@ def load_config(config_path: Optional[Path] = None) -> Config:
     """
     if config_path is None:
         # Default to config/default.yaml relative to project root
-        config_path = Path(__file__).parent.parent.parent / "config" / "default.yaml"
+        config_path = Path(__file__).parent.parent.parent.parent / "config" / "default.yaml"
 
     data = load_yaml_file(config_path)
 
@@ -216,7 +216,7 @@ def load_model_profiles(profiles_path: Optional[Path] = None) -> ModelProfiles:
         ConfigError: If profiles file is invalid
     """
     if profiles_path is None:
-        profiles_path = Path(__file__).parent.parent.parent / "config" / "models.yaml"
+        profiles_path = Path(__file__).parent.parent.parent.parent / "config" / "models.yaml"
 
     data = load_yaml_file(profiles_path)
 

@@ -9,8 +9,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.server.fastmcp import FastMCP
 
 from ..core.orchestrator import Orchestrator
 from ..config.loader import load_config
@@ -19,7 +18,7 @@ from .tools import OxideTools
 
 
 # Create MCP server
-app = Server("oxide")
+mcp = FastMCP("oxide")
 
 
 # Global orchestrator and tools instances
@@ -50,7 +49,7 @@ def start_web_ui():
             )
 
             logger.info(f"Web UI backend started (PID: {web_process.pid})")
-            print("🌐 Web UI started at http://localhost:8000", file=sys.stderr)
+            logger.info("🌐 Web UI started at http://localhost:8000")
 
         except Exception as e:
             logger.error(f"Failed to start Web UI: {e}")
@@ -105,12 +104,12 @@ def initialize():
 
 
 # Define MCP tools
-@app.tool()
+@mcp.tool()
 async def route_task(
     prompt: str,
     files: list[str] | None = None,
     preferences: dict | None = None
-) -> list[TextContent]:
+) -> str:
     """
     Intelligently route a task to the best LLM.
 
@@ -121,22 +120,19 @@ async def route_task(
         prompt: Task description or query
         files: Optional list of file paths to include as context
         preferences: Optional routing preferences
-
-    Example:
-        route_task("Review this code for bugs", files=["src/main.py", "src/utils.py"])
     """
-    chunks = []
+    result_parts = []
     async for content in oxide_tools.route_task(prompt, files, preferences):
-        chunks.append(content)
-    return chunks
+        result_parts.append(content.text)
+    return "".join(result_parts)
 
 
-@app.tool()
+@mcp.tool()
 async def analyze_parallel(
     directory: str,
     prompt: str,
     num_workers: int | None = None
-) -> list[TextContent]:
+) -> str:
     """
     Analyze large codebase in parallel across multiple LLMs.
 
@@ -147,18 +143,15 @@ async def analyze_parallel(
         directory: Directory path to analyze
         prompt: Analysis prompt/query
         num_workers: Number of parallel workers (default: 3)
-
-    Example:
-        analyze_parallel("./src", "Identify all API endpoints and their authentication")
     """
-    chunks = []
+    result_parts = []
     async for content in oxide_tools.analyze_parallel(directory, prompt, num_workers):
-        chunks.append(content)
-    return chunks
+        result_parts.append(content.text)
+    return "".join(result_parts)
 
 
-@app.tool()
-async def list_services() -> list[TextContent]:
+@mcp.tool()
+async def list_services() -> str:
     """
     Check health and availability of all configured LLM services.
 
@@ -166,14 +159,11 @@ async def list_services() -> list[TextContent]:
     - Service health (available/unavailable)
     - Service type (CLI/HTTP)
     - Routing rules configuration
-
-    Example:
-        list_services()
     """
-    chunks = []
+    result_parts = []
     async for content in oxide_tools.list_services():
-        chunks.append(content)
-    return chunks
+        result_parts.append(content.text)
+    return "".join(result_parts)
 
 
 def main():
@@ -182,16 +172,16 @@ def main():
 
     This function is called when running: uv run oxide-mcp
     """
-    # Print startup banner
-    print("🔬 Oxide LLM Orchestrator", file=sys.stderr)
-    print("Starting MCP server...", file=sys.stderr)
+    # Initialize Oxide before running the server
+    logger.info("🔬 Oxide LLM Orchestrator")
+    logger.info("Starting MCP server...")
 
     try:
         # Initialize Oxide
         initialize()
 
         # Run MCP server (blocks)
-        app.run()
+        mcp.run(transport="stdio")
 
     except KeyboardInterrupt:
         logger.info("Oxide MCP Server shutdown requested")
