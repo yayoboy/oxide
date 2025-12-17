@@ -3,105 +3,17 @@ MCP Server for Oxide.
 
 Exposes Oxide functionality via Model Context Protocol for Claude Code integration.
 """
-import asyncio
 import sys
-import os
-import subprocess
-from pathlib import Path
 
 from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent
 
-from ..core.orchestrator import Orchestrator
-from ..config.loader import load_config
-from ..utils.logging import logger, setup_logging
-from .tools import OxideTools
+from ..utils.logging import logger
+from .context import OxideServerContext
 
 
 # Create MCP server
 app = Server("oxide")
-
-
-# Global orchestrator and tools instances
-orchestrator: Orchestrator = None
-oxide_tools: OxideTools = None
-web_process: subprocess.Popen = None
-
-
-def start_web_ui():
-    """Start Web UI backend if enabled via environment variable."""
-    global web_process
-
-    # Check if auto-start is enabled
-    if os.environ.get("OXIDE_AUTO_START_WEB", "").lower() in ("true", "1", "yes"):
-        logger.info("Auto-starting Web UI backend...")
-
-        try:
-            # Start web backend as subprocess
-            web_process = subprocess.Popen(
-                [
-                    sys.executable, "-m", "uvicorn",
-                    "oxide.web.backend.main:app",
-                    "--host", "0.0.0.0",
-                    "--port", "8000",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-            logger.info(f"Web UI backend started (PID: {web_process.pid})")
-            print("🌐 Web UI started at http://localhost:8000", file=sys.stderr)
-
-        except Exception as e:
-            logger.error(f"Failed to start Web UI: {e}")
-
-
-def stop_web_ui():
-    """Stop Web UI backend if running."""
-    global web_process
-
-    if web_process and web_process.poll() is None:
-        logger.info("Stopping Web UI backend...")
-        web_process.terminate()
-        try:
-            web_process.wait(timeout=5)
-            logger.info("Web UI backend stopped")
-        except subprocess.TimeoutExpired:
-            web_process.kill()
-            logger.warning("Web UI backend force killed")
-
-
-def initialize():
-    """Initialize Oxide orchestrator and tools."""
-    global orchestrator, oxide_tools
-
-    logger.info("Initializing Oxide MCP Server")
-
-    try:
-        # Load configuration
-        config = load_config()
-
-        # Setup logging
-        setup_logging(
-            level=config.logging.level,
-            log_file=config.logging.file,
-            console=config.logging.console
-        )
-
-        # Initialize orchestrator
-        orchestrator = Orchestrator(config)
-
-        # Initialize tools
-        oxide_tools = OxideTools(orchestrator)
-
-        logger.info("Oxide MCP Server initialized successfully")
-
-        # Auto-start Web UI if enabled
-        start_web_ui()
-
-    except Exception as e:
-        logger.error(f"Failed to initialize Oxide: {e}")
-        sys.exit(1)
 
 
 # Define MCP tools
@@ -125,8 +37,9 @@ async def route_task(
     Example:
         route_task("Review this code for bugs", files=["src/main.py", "src/utils.py"])
     """
+    context = OxideServerContext.get_instance()
     chunks = []
-    async for content in oxide_tools.route_task(prompt, files, preferences):
+    async for content in context.tools.route_task(prompt, files, preferences):
         chunks.append(content)
     return chunks
 
@@ -151,8 +64,9 @@ async def analyze_parallel(
     Example:
         analyze_parallel("./src", "Identify all API endpoints and their authentication")
     """
+    context = OxideServerContext.get_instance()
     chunks = []
-    async for content in oxide_tools.analyze_parallel(directory, prompt, num_workers):
+    async for content in context.tools.analyze_parallel(directory, prompt, num_workers):
         chunks.append(content)
     return chunks
 
@@ -170,8 +84,9 @@ async def list_services() -> list[TextContent]:
     Example:
         list_services()
     """
+    context = OxideServerContext.get_instance()
     chunks = []
-    async for content in oxide_tools.list_services():
+    async for content in context.tools.list_services():
         chunks.append(content)
     return chunks
 
@@ -186,25 +101,31 @@ def main():
     print("🔬 Oxide LLM Orchestrator", file=sys.stderr)
     print("Starting MCP server...", file=sys.stderr)
 
+    context = None
+
     try:
-        # Initialize Oxide
-        initialize()
+        # Initialize Oxide context
+        context = OxideServerContext.initialize()
 
         # Run MCP server (blocks)
         app.run()
 
     except KeyboardInterrupt:
         logger.info("Oxide MCP Server shutdown requested")
-        stop_web_ui()
+        if context:
+            context.cleanup()
         sys.exit(0)
 
     except Exception as e:
         logger.error(f"Fatal error: {e}")
-        stop_web_ui()
+        if context:
+            context.cleanup()
         sys.exit(1)
+
     finally:
-        # Ensure web UI is stopped
-        stop_web_ui()
+        # Ensure cleanup
+        if context:
+            context.cleanup()
 
 
 if __name__ == "__main__":
