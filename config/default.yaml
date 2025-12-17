@@ -1,0 +1,139 @@
+# Oxide Configuration File
+# Configure LLM services and routing rules
+
+services:
+  # Gemini CLI - Large context window ideal for codebase analysis
+  gemini:
+    type: cli
+    executable: gemini
+    enabled: true
+    max_context_tokens: 2000000  # 2M tokens
+    capabilities:
+      - codebase_analysis
+      - architecture_design
+      - multi_file_context
+
+  # Qwen CLI - Code-specialized for review and generation
+  qwen:
+    type: cli
+    executable: qwen
+    enabled: true
+    max_context_tokens: 32000
+    capabilities:
+      - code_review
+      - code_generation
+      - debugging
+      - refactoring
+
+  # Ollama Local - Fast local inference
+  ollama_local:
+    type: http
+    base_url: "http://localhost:11434"
+    api_type: ollama
+    enabled: true
+    default_model: "qwen2.5-coder:7b"
+    models:
+      - "qwen2.5-coder:7b"
+      - "qwen2.5-coder:14b"
+    capabilities:
+      - quick_query
+      - code_generation
+      - documentation
+
+  # Ollama Remote - Server on LAN for distributed processing
+  ollama_remote:
+    type: http
+    base_url: "http://192.168.1.100:11434"
+    api_type: ollama
+    enabled: false  # Enable manually after setup
+    default_model: "qwen2.5-coder:7b"
+    capabilities:
+      - parallel_processing
+      - code_generation
+
+  # LM Studio - OpenAI-compatible API on laptop
+  lmstudio:
+    type: http
+    base_url: "http://192.168.1.50:1234/v1"
+    api_type: openai_compatible
+    enabled: false  # Enable manually after setup
+    default_model: null  # Auto-detected via /models
+
+# Routing Rules - Define how tasks are routed to services
+routing_rules:
+  # Large codebase analysis
+  codebase_analysis:
+    primary: gemini
+    fallback:
+      - qwen
+      - ollama_local
+    parallel_threshold_files: 20  # Use parallel if >20 files
+    timeout_seconds: 180
+
+  # Code review tasks
+  code_review:
+    primary: qwen
+    fallback:
+      - ollama_local
+      - ollama_remote
+    timeout_seconds: 60
+
+  # Code generation tasks
+  code_generation:
+    primary: qwen
+    fallback:
+      - ollama_local
+    timeout_seconds: 45
+
+  # Quick queries
+  quick_query:
+    primary: ollama_local
+    fallback:
+      - ollama_remote
+      - lmstudio
+    timeout_seconds: 10
+
+  # Architecture design
+  architecture_design:
+    primary: gemini
+    fallback:
+      - qwen
+    timeout_seconds: 120
+
+  # Debugging tasks
+  debugging:
+    primary: qwen
+    fallback:
+      - ollama_local
+      - gemini
+    timeout_seconds: 60
+
+  # Documentation writing
+  documentation:
+    primary: ollama_local
+    fallback:
+      - qwen
+      - gemini
+    timeout_seconds: 30
+
+  # Refactoring tasks
+  refactoring:
+    primary: qwen
+    fallback:
+      - ollama_local
+      - ollama_remote
+    timeout_seconds: 60
+
+# Execution Settings
+execution:
+  max_parallel_workers: 3
+  timeout_seconds: 120
+  streaming: true
+  retry_on_failure: true
+  max_retries: 2
+
+# Logging Configuration
+logging:
+  level: INFO
+  file: /tmp/oxide.log
+  console: true

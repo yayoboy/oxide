@@ -1,0 +1,83 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.pyo
+*.pyd
+build/
+dist/
+wheels/
+*.egg-info
+*.egg
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Logs
+*.log
+/tmp/*.log
+logs/
+
+# Node.js (Frontend)
+oxide/web/frontend/node_modules/
+oxide/web/frontend/dist/
+oxide/web/frontend/build/
+oxide/web/frontend/.vite/
+oxide/web/frontend/.next/
+
+# Lock files (keep uv.lock, but ignore npm)
+oxide/web/frontend/package-lock.json
+oxide/web/frontend/yarn.lock
+oxide/web/frontend/pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# uv
+.uv_cache/
+
+# Oxide specific
+/tmp/oxide*.log
+oxide/web/frontend/.env
+config/local.yaml

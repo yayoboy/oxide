@@ -1,0 +1,252 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0d1117;
+  color: #c9d1d9;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+  border-bottom: 1px solid #30363d;
+  padding: 20px 0;
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  font-size: 2rem;
+  color: #58a6ff;
+  margin-bottom: 5px;
+}
+
+.header p {
+  color: #8b949e;
+  font-size: 0.9rem;
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: #58a6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(88, 166, 255, 0.1);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #30363d;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #c9d1d9;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success {
+  background: #238636;
+  color: #ffffff;
+}
+
+.badge-error {
+  background: #da3633;
+  color: #ffffff;
+}
+
+.badge-warning {
+  background: #9e6a03;
+  color: #ffffff;
+}
+
+.badge-info {
+  background: #1f6feb;
+  color: #ffffff;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-healthy {
+  background: #3fb950;
+  box-shadow: 0 0 8px #3fb950;
+}
+
+.status-unhealthy {
+  background: #f85149;
+  box-shadow: 0 0 8px #f85149;
+}
+
+.status-unknown {
+  background: #8b949e;
+}
+
+.metric {
+  margin: 10px 0;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: #8b949e;
+  margin-bottom: 5px;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #c9d1d9;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #238636;
+  color: #ffffff;
+}
+
+.btn:hover {
+  background: #2ea043;
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  background: #30363d;
+  color: #8b949e;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+}
+
+.btn-secondary:hover {
+  background: #30363d;
+  border-color: #58a6ff;
+}
+
+.task-item {
+  padding: 15px;
+  margin: 10px 0;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.task-item:hover {
+  border-color: #484f58;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.task-prompt {
+  font-size: 0.9rem;
+  color: #c9d1d9;
+  margin: 10px 0;
+}
+
+.task-meta {
+  font-size: 0.8rem;
+  color: #8b949e;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #8b949e;
+}
+
+.error {
+  padding: 15px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid #da3633;
+  border-radius: 6px;
+  color: #ffa198;
+  margin: 10px 0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8b949e;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.3;
+}

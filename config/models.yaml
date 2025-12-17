@@ -1,0 +1,90 @@
+# Model Capability Profiles
+# Define strengths, weaknesses, and optimal use cases for each model
+
+model_profiles:
+  gemini:
+    name: "Google Gemini"
+    strengths:
+      - "Large context window (2M+ tokens)"
+      - "Multi-file analysis capability"
+      - "Excellent architectural understanding"
+      - "Strong at finding patterns across codebases"
+      - "Good at high-level design decisions"
+    weaknesses:
+      - "Higher latency compared to local models"
+      - "Potential API rate limits"
+      - "Network dependency"
+    optimal_for:
+      - "Analyzing entire codebases (100+ files)"
+      - "Finding patterns across many files"
+      - "Understanding system architecture"
+      - "Identifying cross-cutting concerns"
+      - "Large-scale refactoring planning"
+
+  qwen:
+    name: "Qwen Code"
+    strengths:
+      - "Specialized code training"
+      - "Strong code generation capabilities"
+      - "Excellent at code review"
+      - "Good understanding of programming patterns"
+      - "Fast for focused tasks"
+    weaknesses:
+      - "Smaller context window (32K tokens)"
+      - "Limited multi-file context"
+    optimal_for:
+      - "Code review and quality checks"
+      - "Writing new code from specifications"
+      - "Debugging specific issues"
+      - "Refactoring individual functions/modules"
+      - "Code optimization suggestions"
+
+  ollama_qwen2_5_coder_7b:
+    name: "Qwen 2.5 Coder 7B (via Ollama)"
+    strengths:
+      - "Local inference (no network)"
+      - "Fast response time (<2s typical)"
+      - "No API costs"
+      - "Good code understanding for size"
+      - "Privacy - data stays local"
+    weaknesses:
+      - "Limited by local GPU/CPU resources"
+      - "Smaller model - less capable than larger variants"
+      - "Limited context window"
+    optimal_for:
+      - "Quick queries and simple questions"
+      - "Fast code generation for small functions"
+      - "Local development without internet"
+      - "Privacy-sensitive code"
+      - "Rapid iteration cycles"
+
+  ollama_qwen2_5_coder_14b:
+    name: "Qwen 2.5 Coder 14B (via Ollama)"
+    strengths:
+      - "Larger model - better quality than 7B"
+      - "Still fast on decent hardware"
+      - "Local and private"
+      - "Better reasoning than 7B variant"
+    weaknesses:
+      - "Requires more VRAM/RAM"
+      - "Slower than 7B variant"
+    optimal_for:
+      - "Code review when quality matters"
+      - "Complex code generation"
+      - "Better architectural suggestions"
+
+  lmstudio_generic:
+    name: "LM Studio (Generic)"
+    strengths:
+      - "Flexible model selection"
+      - "User can load different models"
+      - "Local network - faster than cloud"
+      - "No API rate limits"
+    weaknesses:
+      - "Model-dependent capabilities"
+      - "Network latency on LAN"
+      - "Depends on laptop availability"
+    optimal_for:
+      - "Additional parallel capacity"
+      - "Specialized models loaded by user"
+      - "Experimentation with different models"
