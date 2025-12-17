@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import AsyncIterator, List, Optional, Dict, Any
 
 from .base import BaseAdapter
-from ..utils.exceptions import CLIAdapterError, ServiceUnavailableError, TimeoutError
+from ..utils.exceptions import CLIAdapterError, ServiceUnavailableError, TimeoutError, AdapterError
+from ..utils.security import validate_prompt, validate_file_paths, sanitize_command_arg
 
 
 class CLIAdapter(BaseAdapter):
@@ -99,7 +100,7 @@ class CLIAdapter(BaseAdapter):
         files: Optional[List[str]] = None
     ) -> List[str]:
         """
-        Build command-line arguments.
+        Build command-line arguments with security validation.
 
         Args:
             prompt: Task prompt
@@ -107,26 +108,40 @@ class CLIAdapter(BaseAdapter):
 
         Returns:
             List of command arguments
+
+        Raises:
+            AdapterError: If inputs contain dangerous patterns
         """
+        # Validate prompt for security issues
+        try:
+            validated_prompt = validate_prompt(prompt)
+        except AdapterError as e:
+            self.logger.error(f"Prompt validation failed: {e}")
+            raise
+
         cmd = [self.executable, "-p"]
 
         # Build prompt with file inclusions
         full_prompt = ""
 
-        # Add file references with @ syntax
+        # Validate and add file references with @ syntax
         if files:
-            for file_path in files:
-                # Validate and convert to absolute path
-                path = Path(file_path).expanduser().resolve()
-                if not path.exists():
-                    self.logger.warning(f"File not found: {file_path}")
-                    continue
+            try:
+                # Validate all file paths for security
+                validated_paths = validate_file_paths(files, must_exist=True)
 
-                # Add @file reference
-                full_prompt += f"@{path} "
+                for path in validated_paths:
+                    # Sanitize path string before adding to command
+                    sanitized_path = sanitize_command_arg(str(path))
+                    full_prompt += f"@{sanitized_path} "
 
-        # Add main prompt
-        full_prompt += prompt
+            except AdapterError as e:
+                self.logger.warning(f"File validation warning: {e}")
+                # Continue without files rather than failing completely
+
+        # Add main prompt (sanitize as defense-in-depth)
+        sanitized_prompt = sanitize_command_arg(validated_prompt)
+        full_prompt += sanitized_prompt
 
         cmd.append(full_prompt)
 
