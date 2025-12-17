@@ -81,3 +81,4 @@ dmypy.json
 /tmp/oxide*.log
 oxide/web/frontend/.env
 config/local.yaml
+coverage.json
