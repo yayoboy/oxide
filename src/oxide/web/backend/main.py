@@ -5,16 +5,18 @@ Provides REST API and WebSocket endpoints for the Oxide dashboard.
 """
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
 from ...utils.logging import logger, setup_logging
-from .routes import services, tasks, monitoring
+from .routes import services, tasks, monitoring, routing
 from .websocket import WebSocketManager
 
 
@@ -70,21 +72,39 @@ app.add_middleware(
 )
 
 
-# Include routers
+# Include API routers (these take precedence over static files)
 app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
+app.include_router(routing.router, prefix="/api/routing", tags=["routing"])
+
+
+# Serve static files from the frontend build
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    # Mount static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
+    logger.info(f"Serving frontend static files from: {frontend_dist}")
+else:
+    logger.warning(f"Frontend dist directory not found: {frontend_dist}")
+    logger.warning("Run 'npm run build' in src/oxide/web/frontend to build the frontend")
 
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
-    return {
-        "name": "Oxide LLM Orchestrator API",
-        "version": "0.1.0",
-        "status": "running",
-        "docs": "/docs"
-    }
+    """Serve the frontend index.html."""
+    index_file = frontend_dist / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    else:
+        # Fallback to JSON if frontend not built
+        return {
+            "name": "Oxide LLM Orchestrator API",
+            "version": "0.1.0",
+            "status": "running",
+            "docs": "/docs",
+            "warning": "Frontend not built. Run 'npm run build' in src/oxide/web/frontend"
+        }
 
 
 @app.get("/health")
@@ -131,6 +151,10 @@ async def global_exception_handler(request, exc):
         status_code=500,
         content={"error": "Internal server error", "detail": str(exc)}
     )
+
+
+# SPA catch-all route removed - client-side routing handles navigation
+# Frontend is served from root "/" and static assets from "/assets"
 
 
 def get_orchestrator() -> Orchestrator:

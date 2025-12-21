@@ -117,7 +117,10 @@ class Orchestrator:
         Args:
             prompt: Task prompt/query
             files: Optional list of file paths
-            preferences: Optional routing preferences (e.g., prefer_local=True)
+            preferences: Optional routing preferences:
+                - preferred_service: Force specific service (e.g., "ollama_remote")
+                - task_type: Override task classification (e.g., "code_generation")
+                - timeout: Override timeout in seconds
 
         Yields:
             Response chunks as they become available
@@ -127,13 +130,47 @@ class Orchestrator:
             ExecutionError: If task execution fails
         """
         self.logger.info(f"Executing task with {len(files) if files else 0} files")
+        preferences = preferences or {}
 
         try:
-            # 1. Classify task
+            # Check for preference overrides
+            preferred_service = preferences.get("preferred_service")
+            timeout_override = preferences.get("timeout")
+
+            # 1. Classify task (always needed for TaskInfo)
             task_info = self.classifier.classify(prompt, files)
 
-            # 2. Route to service
-            decision = await self.router.route(task_info)
+            if preferred_service:
+                # Direct routing to preferred service
+                self.logger.info(f"Using preferred service: {preferred_service}")
+
+                # Verify service exists and is available
+                if preferred_service not in self.adapters:
+                    raise NoServiceAvailableError(f"Service '{preferred_service}' not found")
+
+                if not await self._check_service_health(preferred_service):
+                    self.logger.warning(f"Preferred service '{preferred_service}' is unhealthy, but attempting anyway")
+
+                # Create decision for preferred service
+                decision = RouterDecision(
+                    primary_service=preferred_service,
+                    fallback_services=[],
+                    execution_mode="single",
+                    timeout_seconds=timeout_override or self.config.execution.timeout_seconds
+                )
+            else:
+                # Allow task_type override
+                if "task_type" in preferences:
+                    from .classifier import TaskType
+                    task_info.task_type = TaskType(preferences["task_type"])
+                    self.logger.info(f"Task type overridden to: {task_info.task_type}")
+
+                # 2. Route to service
+                decision = await self.router.route(task_info)
+
+                # Apply timeout override if provided
+                if timeout_override:
+                    decision.timeout_seconds = timeout_override
 
             # 3. Execute with retries
             async for chunk in self._execute_with_retry(

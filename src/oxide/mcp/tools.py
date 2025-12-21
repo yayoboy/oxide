@@ -3,6 +3,7 @@ MCP tool definitions for Oxide.
 
 Exposes Oxide functionality as tools that Claude can invoke.
 """
+import uuid
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from mcp.types import TextContent
 from ..core.orchestrator import Orchestrator
 from ..execution.parallel import ParallelExecutor
 from ..utils.logging import logger
+from ..utils.task_storage import get_task_storage
 
 
 class OxideTools:
@@ -56,33 +58,74 @@ class OxideTools:
         """
         self.logger.info(f"route_task called with {len(files) if files else 0} files")
 
+        # Generate task ID and get task storage
+        task_id = str(uuid.uuid4())
+        task_storage = get_task_storage()
+
+        # Classify task to get type and service info
+        from ..core.classifier import TaskClassifier
+        classifier = TaskClassifier()
+        task_info = classifier.classify(prompt, files)
+
+        # Determine service (will be set after routing)
+        service = task_info.recommended_services[0] if task_info.recommended_services else "unknown"
+
         try:
             # Validate files exist
+            validated_files = files or []
             if files:
-                validated_files = []
+                temp_files = []
                 for file_path in files:
                     path = Path(file_path).expanduser().resolve()
                     if path.exists():
-                        validated_files.append(str(path))
+                        temp_files.append(str(path))
                     else:
                         yield TextContent(
                             type="text",
                             text=f"⚠️ Warning: File not found: {file_path}\n\n"
                         )
-                files = validated_files
+                validated_files = temp_files
+
+            # Save task to storage (queued)
+            task_storage.add_task(
+                task_id=task_id,
+                prompt=prompt,
+                files=validated_files,
+                preferences=preferences,
+                service=service,
+                task_type=task_info.task_type.value
+            )
+
+            # Update to running status
+            task_storage.update_task(task_id, status="running")
 
             # Stream results
             buffer = ""
-            async for chunk in self.orchestrator.execute_task(prompt, files, preferences):
+            async for chunk in self.orchestrator.execute_task(prompt, validated_files, preferences):
                 buffer += chunk
                 # Yield chunks as they arrive
                 yield TextContent(type="text", text=chunk)
+
+            # Task completed successfully
+            task_storage.update_task(
+                task_id,
+                status="completed",
+                result=buffer
+            )
 
             self.logger.info(f"route_task completed: {len(buffer)} chars")
 
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}\n"
             self.logger.error(f"route_task failed: {e}")
+
+            # Update task as failed
+            task_storage.update_task(
+                task_id,
+                status="failed",
+                error=str(e)
+            )
+
             yield TextContent(type="text", text=error_msg)
 
     async def analyze_parallel(

@@ -43,10 +43,10 @@ services:
   # Ollama Remote - Server on LAN for distributed processing
   ollama_remote:
     type: http
-    base_url: "http://192.168.1.100:11434"
+    base_url: "http://192.168.1.46:11434"
     api_type: ollama
-    enabled: false  # Enable manually after setup
-    default_model: "qwen2.5-coder:7b"
+    enabled: true  # Enable manually after setup
+    default_model: "qwen2.5:7b"
     capabilities:
       - parallel_processing
       - code_generation
@@ -126,11 +126,11 @@ routing_rules:
 
 # Execution Settings
 execution:
-  max_parallel_workers: 3
+  max_parallel_workers: 4
   timeout_seconds: 120
   streaming: true
   retry_on_failure: true
-  max_retries: 2
+  max_retries: 5
 
 # Logging Configuration
 logging:

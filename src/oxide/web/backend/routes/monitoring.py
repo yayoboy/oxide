@@ -45,12 +45,14 @@ async def get_metrics(orchestrator: Orchestrator = Depends(get_orchestrator)) ->
         healthy_services = sum(1 for s in service_status.values() if s.get("healthy"))
 
         # Get task stats
-        from .tasks import tasks_store
+        from ....utils.task_storage import get_task_storage
+        task_storage = get_task_storage()
+        stats = task_storage.get_stats()
 
-        total_tasks = len(tasks_store)
-        running_tasks = sum(1 for t in tasks_store.values() if t["status"] == "running")
-        completed_tasks = sum(1 for t in tasks_store.values() if t["status"] == "completed")
-        failed_tasks = sum(1 for t in tasks_store.values() if t["status"] == "failed")
+        total_tasks = stats["total"]
+        running_tasks = stats["by_status"].get("running", 0)
+        completed_tasks = stats["by_status"].get("completed", 0)
+        failed_tasks = stats["by_status"].get("failed", 0)
 
         # System resources
         cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -106,9 +108,13 @@ async def get_stats(orchestrator: Orchestrator = Depends(get_orchestrator)) -> D
         Detailed statistics about task execution
     """
     try:
-        from .tasks import tasks_store
+        from ....utils.task_storage import get_task_storage
+        task_storage = get_task_storage()
 
-        if not tasks_store:
+        # Get all tasks
+        tasks = task_storage.list_tasks(limit=1000)
+
+        if not tasks:
             return {
                 "total_tasks": 0,
                 "avg_duration": 0,
@@ -117,13 +123,12 @@ async def get_stats(orchestrator: Orchestrator = Depends(get_orchestrator)) -> D
             }
 
         # Calculate stats
-        tasks = list(tasks_store.values())
         completed = [t for t in tasks if t["status"] == "completed"]
 
         # Average duration
         if completed:
-            durations = [t.get("duration", 0) for t in completed]
-            avg_duration = sum(durations) / len(durations)
+            durations = [t.get("duration", 0) for t in completed if t.get("duration")]
+            avg_duration = sum(durations) / len(durations) if durations else 0
         else:
             avg_duration = 0
 

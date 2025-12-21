@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.orchestrator import Orchestrator
 from ..config.loader import load_config
 from ..utils.logging import logger, setup_logging
+from ..utils.process_manager import get_process_manager
 from .tools import OxideTools
 
 
@@ -48,6 +49,10 @@ def start_web_ui():
                 stderr=subprocess.DEVNULL,
             )
 
+            # Register process for automatic cleanup
+            process_manager = get_process_manager()
+            process_manager.register_sync_process(web_process)
+
             logger.info(f"Web UI backend started (PID: {web_process.pid})")
             logger.info("🌐 Web UI started at http://localhost:8000")
 
@@ -61,6 +66,12 @@ def stop_web_ui():
 
     if web_process and web_process.poll() is None:
         logger.info("Stopping Web UI backend...")
+
+        # Unregister from process manager (we're handling it manually here)
+        process_manager = get_process_manager()
+        process_manager.unregister_sync_process(web_process)
+
+        # Clean up manually
         web_process.terminate()
         try:
             web_process.wait(timeout=5)
@@ -77,6 +88,10 @@ def initialize():
     logger.info("Initializing Oxide MCP Server")
 
     try:
+        # Initialize process manager (sets up signal handlers)
+        process_manager = get_process_manager()
+        logger.info("✓ Process manager initialized (signal handlers active)")
+
         # Load configuration
         config = load_config()
 

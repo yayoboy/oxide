@@ -2,10 +2,12 @@
  * Main App Component
  * Oxide LLM Orchestrator Dashboard
  */
-import React from 'react';
+import React, { useState } from 'react';
 import ServiceCard from './components/ServiceCard';
 import MetricsDashboard from './components/MetricsDashboard';
 import TaskHistory from './components/TaskHistory';
+import TaskExecutor from './components/TaskExecutor';
+import TaskAssignmentManager from './components/TaskAssignmentManager';
 import { useServices } from './hooks/useServices';
 import { useMetrics } from './hooks/useMetrics';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -14,6 +16,7 @@ function App() {
   const { services, loading: servicesLoading, error: servicesError } = useServices(5000);
   const { metrics, loading: metricsLoading } = useMetrics(2000);
   const { connected: wsConnected, messages: wsMessages } = useWebSocket();
+  const [taskHistoryKey, setTaskHistoryKey] = useState(0);
 
   return (
     <div className="app">
@@ -42,6 +45,11 @@ function App() {
           ) : (
             <MetricsDashboard metrics={metrics} />
           )}
+        </section>
+
+        {/* Task Executor */}
+        <section style={{ marginBottom: '30px' }}>
+          <TaskExecutor onTaskCompleted={() => setTaskHistoryKey((prev) => prev + 1)} />
         </section>
 
         {/* Services Section */}
@@ -73,10 +81,15 @@ function App() {
           )}
         </section>
 
+        {/* Task Assignment Manager */}
+        <section style={{ marginBottom: '30px' }}>
+          <TaskAssignmentManager />
+        </section>
+
         {/* Task History */}
         <section style={{ marginBottom: '30px' }}>
           <h2 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>Task History</h2>
-          <TaskHistory />
+          <TaskHistory key={taskHistoryKey} />
         </section>
 
         {/* WebSocket Messages (Debug) */}

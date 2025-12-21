@@ -38,6 +38,11 @@ coverage.xml
 logs/
 
 # Node.js (Frontend)
+src/oxide/web/frontend/node_modules/
+src/oxide/web/frontend/dist/
+src/oxide/web/frontend/build/
+src/oxide/web/frontend/.vite/
+src/oxide/web/frontend/.next/
 oxide/web/frontend/node_modules/
 oxide/web/frontend/dist/
 oxide/web/frontend/build/
@@ -45,6 +50,9 @@ oxide/web/frontend/.vite/
 oxide/web/frontend/.next/
 
 # Lock files (keep uv.lock, but ignore npm)
+src/oxide/web/frontend/package-lock.json
+src/oxide/web/frontend/yarn.lock
+src/oxide/web/frontend/pnpm-lock.yaml
 oxide/web/frontend/package-lock.json
 oxide/web/frontend/yarn.lock
 oxide/web/frontend/pnpm-lock.yaml

@@ -12,12 +12,10 @@ from pydantic import BaseModel
 from ....core.orchestrator import Orchestrator
 from ....utils.logging import logger
 from ....utils.exceptions import NoServiceAvailableError, ExecutionError
+from ....utils.task_storage import get_task_storage
 
 
 router = APIRouter()
-
-# In-memory task storage (replace with database in production)
-tasks_store: Dict[str, Dict[str, Any]] = {}
 
 
 class TaskRequest(BaseModel):
@@ -65,16 +63,24 @@ async def execute_task(
         # Generate task ID
         task_id = str(uuid.uuid4())
 
+        # Get task storage
+        task_storage = get_task_storage()
+
+        # Classify task to get type and service
+        from ....core.classifier import TaskClassifier
+        classifier = TaskClassifier()
+        task_info = classifier.classify(request.prompt, request.files)
+        service = task_info.recommended_services[0] if task_info.recommended_services else "unknown"
+
         # Store task info
-        tasks_store[task_id] = {
-            "id": task_id,
-            "status": "queued",
-            "prompt": request.prompt,
-            "files": request.files or [],
-            "result": None,
-            "error": None,
-            "created_at": asyncio.get_event_loop().time()
-        }
+        task_storage.add_task(
+            task_id=task_id,
+            prompt=request.prompt,
+            files=request.files,
+            preferences=request.preferences,
+            service=service,
+            task_type=task_info.task_type.value
+        )
 
         # Execute task in background
         background_tasks.add_task(
@@ -117,24 +123,19 @@ async def _execute_task_background(
     from ..main import get_ws_manager
 
     ws_manager = get_ws_manager()
-    start_time = asyncio.get_event_loop().time()
+    task_storage = get_task_storage()
 
     try:
         # Update status to running
-        tasks_store[task_id]["status"] = "running"
-        tasks_store[task_id]["started_at"] = start_time
+        task_storage.update_task(task_id, status="running")
 
-        # Classify task to get service info
-        from ....core.classifier import TaskClassifier
-        classifier = TaskClassifier()
-        task_info = classifier.classify(prompt, files)
+        # Get task info for WebSocket broadcast
+        task = task_storage.get_task(task_id)
+        service = task.get("service", "unknown")
+        task_type = task.get("task_type", "unknown")
 
         # Broadcast task start
-        await ws_manager.broadcast_task_start(
-            task_id,
-            task_info.task_type.value,
-            task_info.recommended_services[0] if task_info.recommended_services else "unknown"
-        )
+        await ws_manager.broadcast_task_start(task_id, task_type, service)
 
         # Execute task
         chunks = []
@@ -146,15 +147,11 @@ async def _execute_task_background(
         result = "".join(chunks)
 
         # Update task as completed
-        end_time = asyncio.get_event_loop().time()
-        duration = end_time - start_time
+        task_storage.update_task(task_id, status="completed", result=result)
 
-        tasks_store[task_id].update({
-            "status": "completed",
-            "result": result,
-            "completed_at": end_time,
-            "duration": duration
-        })
+        # Get updated task for duration
+        updated_task = task_storage.get_task(task_id)
+        duration = updated_task.get("duration", 0)
 
         # Broadcast completion
         await ws_manager.broadcast_task_complete(task_id, True, duration)
@@ -163,36 +160,21 @@ async def _execute_task_background(
         error_msg = f"No service available: {e}"
         logger.error(error_msg)
 
-        tasks_store[task_id].update({
-            "status": "failed",
-            "error": error_msg,
-            "completed_at": asyncio.get_event_loop().time()
-        })
-
+        task_storage.update_task(task_id, status="failed", error=error_msg)
         await ws_manager.broadcast_task_complete(task_id, False, error=error_msg)
 
     except ExecutionError as e:
         error_msg = f"Execution error: {e}"
         logger.error(error_msg)
 
-        tasks_store[task_id].update({
-            "status": "failed",
-            "error": error_msg,
-            "completed_at": asyncio.get_event_loop().time()
-        })
-
+        task_storage.update_task(task_id, status="failed", error=error_msg)
         await ws_manager.broadcast_task_complete(task_id, False, error=error_msg)
 
     except Exception as e:
         error_msg = f"Unexpected error: {e}"
         logger.error(error_msg)
 
-        tasks_store[task_id].update({
-            "status": "failed",
-            "error": error_msg,
-            "completed_at": asyncio.get_event_loop().time()
-        })
-
+        task_storage.update_task(task_id, status="failed", error=error_msg)
         await ws_manager.broadcast_task_complete(task_id, False, error=error_msg)
 
 
@@ -207,10 +189,13 @@ async def get_task(task_id: str) -> Dict[str, Any]:
     Returns:
         Task information
     """
-    if task_id not in tasks_store:
+    task_storage = get_task_storage()
+    task = task_storage.get_task(task_id)
+
+    if not task:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
-    return tasks_store[task_id]
+    return task
 
 
 @router.get("/")
@@ -228,21 +213,13 @@ async def list_tasks(
     Returns:
         List of tasks
     """
-    tasks = list(tasks_store.values())
-
-    # Filter by status if provided
-    if status:
-        tasks = [t for t in tasks if t["status"] == status]
-
-    # Sort by creation time (newest first)
-    tasks.sort(key=lambda t: t.get("created_at", 0), reverse=True)
-
-    # Limit results
-    tasks = tasks[:limit]
+    task_storage = get_task_storage()
+    tasks = task_storage.list_tasks(status=status, limit=limit)
+    stats = task_storage.get_stats()
 
     return {
         "tasks": tasks,
-        "total": len(tasks_store),
+        "total": stats["total"],
         "filtered": len(tasks)
     }
 
@@ -258,10 +235,10 @@ async def delete_task(task_id: str) -> Dict[str, Any]:
     Returns:
         Success message
     """
-    if task_id not in tasks_store:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    task_storage = get_task_storage()
 
-    del tasks_store[task_id]
+    if not task_storage.delete_task(task_id):
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
     return {
         "message": f"Task '{task_id}' deleted successfully"
@@ -279,20 +256,8 @@ async def clear_tasks(status: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         Number of tasks cleared
     """
-    global tasks_store
-
-    if status:
-        # Clear only tasks with specific status
-        before_count = len(tasks_store)
-        tasks_store = {
-            tid: task for tid, task in tasks_store.items()
-            if task["status"] != status
-        }
-        cleared = before_count - len(tasks_store)
-    else:
-        # Clear all tasks
-        cleared = len(tasks_store)
-        tasks_store = {}
+    task_storage = get_task_storage()
+    cleared = task_storage.clear_tasks(status=status)
 
     return {
         "message": f"Cleared {cleared} task(s)",

@@ -8,6 +8,7 @@ from typing import AsyncIterator, List, Optional, Dict, Any
 
 from .base import BaseAdapter
 from ..utils.exceptions import CLIAdapterError, ServiceUnavailableError, TimeoutError
+from ..utils.process_manager import get_process_manager
 
 
 class CLIAdapter(BaseAdapter):
@@ -54,6 +55,9 @@ class CLIAdapter(BaseAdapter):
 
         self.logger.debug(f"Executing command: {' '.join(cmd[:3])}... (truncated)")
 
+        process = None
+        process_manager = get_process_manager()
+
         try:
             # Create subprocess
             process = await asyncio.create_subprocess_exec(
@@ -61,6 +65,9 @@ class CLIAdapter(BaseAdapter):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+
+            # Register process for automatic cleanup on exit
+            process_manager.register_async_process(process)
 
             # Stream output with timeout
             try:
@@ -92,6 +99,10 @@ class CLIAdapter(BaseAdapter):
             raise
         except Exception as e:
             raise CLIAdapterError(f"Unexpected error during execution: {e}")
+        finally:
+            # Unregister process when done (whether success or failure)
+            if process:
+                process_manager.unregister_async_process(process)
 
     async def _build_command(
         self,
