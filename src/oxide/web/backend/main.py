@@ -16,7 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
 from ...utils.logging import logger, setup_logging
-from .routes import services, tasks, monitoring, routing, machines, memory
+from ...cluster import init_cluster_coordinator, get_cluster_coordinator
+from .routes import services, tasks, monitoring, routing, machines, memory, cluster
 from .websocket import WebSocketManager
 
 
@@ -46,12 +47,34 @@ async def lifespan(app: FastAPI):
     # Initialize WebSocket manager
     ws_manager = WebSocketManager()
 
+    # Initialize cluster coordinator if enabled
+    cluster_config = getattr(config, 'cluster', None)
+    if cluster_config and getattr(cluster_config, 'enabled', False):
+        import socket
+        node_id = f"{socket.gethostname()}_{config.cluster.api_port}"
+
+        coordinator = init_cluster_coordinator(
+            node_id=node_id,
+            broadcast_port=config.cluster.broadcast_port,
+            api_port=config.cluster.api_port
+        )
+        await coordinator.start(orchestrator)
+        logger.info("Cluster coordinator started")
+    else:
+        logger.info("Cluster coordination disabled")
+
     logger.info("Oxide Web Backend started successfully")
 
     yield
 
     # Cleanup
     logger.info("Shutting down Oxide Web Backend")
+
+    # Stop cluster coordinator
+    coordinator = get_cluster_coordinator()
+    if coordinator:
+        await coordinator.stop()
+        logger.info("Cluster coordinator stopped")
 
 
 # Create FastAPI app
@@ -79,6 +102,7 @@ app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitorin
 app.include_router(routing.router, prefix="/api/routing", tags=["routing"])
 app.include_router(machines.router, prefix="/api/machines", tags=["machines"])
 app.include_router(memory.router)  # Memory router already has prefix="/api/memory"
+app.include_router(cluster.router)  # Cluster router already has prefix="/api/cluster"
 
 
 # Serve static files from the frontend build

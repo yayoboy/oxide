@@ -67,7 +67,7 @@ services:
     type: http
     base_url: "http://192.168.1.33:1234/v1"
     api_type: openai_compatible
-    enabled: false  # Enable manually after setup (change to true when ready)
+    enabled: true  # Enable manually after setup (change to true when ready)
     default_model: null           # Will auto-detect via /v1/models
     auto_start: false             # LM Studio must be started manually
     auto_detect_model: true       # CRITICAL: Auto-detect model (LM Studio doesn't persist model names)
@@ -168,3 +168,13 @@ memory:
   max_messages_per_conversation: 100  # Limit messages per conversation
   auto_prune_enabled: true         # Enable automatic pruning
   similarity_threshold: 0.5        # Minimum similarity for context retrieval
+
+# Cluster Configuration - Multi-Machine Cooperation
+cluster:
+  enabled: false                   # Enable cluster coordination (set to true for multi-machine)
+  broadcast_port: 8888             # UDP port for node discovery
+  api_port: 8000                   # HTTP API port
+  discovery_interval: 30           # Seconds between discovery broadcasts
+  load_balancing: true             # Enable load-based task routing
+  # When enabled, Oxide instances on LAN will auto-discover each other
+  # and distribute tasks based on system load and service availability
