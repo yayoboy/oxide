@@ -1,12 +1,45 @@
 /**
  * Compact Dashboard - Unified view with provider separation
  * Displays CLI, Local, and Remote providers separately with immediate metrics
+ * Enhanced with visual provider themes and compact layout
  */
 import React from 'react';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { StatusIndicator } from './ui/StatusIndicator';
 import { MetricCard } from './ui/MetricCard';
+import { MetricPill } from './ui/MetricPill';
+import { CompactSystemBar } from './ui/CompactSystemBar';
+import { LLMMetricsPanel } from './ui/LLMMetricsPanel';
+import { cn } from '../lib/utils';
+
+// Provider visual themes for clear separation
+const PROVIDER_THEMES = {
+  cli: {
+    gradient: 'from-blue-500 to-cyan-500',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+    icon: '⚡',
+    label: 'CLI Providers',
+    subtitle: 'Direct command-line tools'
+  },
+  local: {
+    gradient: 'from-green-500 to-emerald-500',
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/30',
+    icon: '🏠',
+    label: 'Local Services',
+    subtitle: 'Running on this machine'
+  },
+  remote: {
+    gradient: 'from-purple-500 to-magenta-500',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/30',
+    icon: '🌐',
+    label: 'Remote Services',
+    subtitle: 'External API endpoints'
+  }
+};
 
 const CompactDashboard = ({ services, metrics }) => {
   // Categorize services by type
@@ -41,133 +74,161 @@ const CompactDashboard = ({ services, metrics }) => {
   const llmMetrics = metrics?.llm || {};
 
   return (
-    <div className="space-y-6">
-      {/* Top-level Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Services"
-          value={services?.total || 0}
-          subtitle={`${services?.healthy || 0} healthy`}
-          status={services?.healthy === services?.total ? 'success' : 'warning'}
-          icon="🔧"
-        />
-        <MetricCard
-          title="Active Tasks"
-          value={metrics?.active_tasks || 0}
-          subtitle="executing now"
-          status="info"
-          icon="⚡"
-        />
-        <MetricCard
-          title="Total Executions"
-          value={metrics?.total_executions || 0}
-          subtitle="all time"
-          status="neutral"
-          icon="📊"
-        />
-        <MetricCard
-          title="System Load"
-          value={`${systemMetrics.cpu_percent || 0}%`}
-          subtitle={`${systemMetrics.memory_percent || 0}% RAM`}
-          status={systemMetrics.cpu_percent > 80 ? 'error' : 'success'}
-          icon="💻"
-        />
+    <div className="space-y-4">
+      {/* Compact top bar with key metrics + system status */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <MetricPill
+            icon="🔧"
+            label="Services"
+            value={`${services?.healthy || 0}/${services?.total || 0}`}
+            status={services?.healthy === services?.total ? 'success' : 'warning'}
+          />
+          <MetricPill
+            icon="⚡"
+            label="Active"
+            value={metrics?.active_tasks || 0}
+            status="info"
+          />
+          <MetricPill
+            icon="📊"
+            label="Total"
+            value={metrics?.total_executions || 0}
+            status="neutral"
+          />
+        </div>
+
+        <CompactSystemBar system={systemMetrics} />
       </div>
 
-      {/* Services Grid - Separated by Type */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* CLI Providers */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl">💻</div>
-              <h3 className="text-lg font-semibold">CLI Providers</h3>
-            </div>
-            <Badge variant={cli.length > 0 ? 'success' : 'secondary'}>
-              {cli.length}
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {cli.length > 0 ? (
-              cli.map((service) => (
-                <ServiceRow key={service.name} service={service} />
-              ))
-            ) : (
-              <EmptyState icon="💻" text="No CLI providers" />
-            )}
-          </div>
-        </Card>
+      {/* LLM Metrics - if available */}
+      <LLMMetricsPanel llmMetrics={llmMetrics} />
 
-        {/* Local Providers */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl">🏠</div>
-              <h3 className="text-lg font-semibold">Local Providers</h3>
-            </div>
-            <Badge variant={local.length > 0 ? 'success' : 'secondary'}>
-              {local.length}
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {local.length > 0 ? (
-              local.map((service) => (
-                <ServiceRow key={service.name} service={service} showMetrics />
-              ))
-            ) : (
-              <EmptyState icon="🏠" text="No local providers" />
-            )}
-          </div>
-        </Card>
+      {/* Provider sections - 3 column grid with enhanced visual separation */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ProviderSection type="cli" services={cli} />
+        <ProviderSection type="local" services={local} />
+        <ProviderSection type="remote" services={remote} />
+      </div>
+    </div>
+  );
+};
 
-        {/* Remote Providers */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl">🌐</div>
-              <h3 className="text-lg font-semibold">Remote Providers</h3>
-            </div>
-            <Badge variant={remote.length > 0 ? 'success' : 'secondary'}>
-              {remote.length}
-            </Badge>
+/**
+ * Provider Section Component
+ * Enhanced visual separation with color-coded themes
+ */
+const ProviderSection = ({ type, services }) => {
+  const theme = PROVIDER_THEMES[type];
+  const allHealthy = services.length > 0 && services.every(s => s.healthy);
+
+  return (
+    <div className={cn(
+      "relative rounded-xl border-2 overflow-hidden transition-all hover:scale-[1.02]",
+      theme.border,
+      theme.bg
+    )}>
+      {/* Gradient top accent */}
+      <div className={cn(
+        "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
+        theme.gradient
+      )} />
+
+      {/* Header - compact */}
+      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{theme.icon}</span>
+          <div>
+            <h3 className="text-sm font-semibold text-white">{theme.label}</h3>
+            <p className="text-xs text-gh-fg-subtle">{theme.subtitle}</p>
           </div>
-          <div className="space-y-3">
-            {remote.length > 0 ? (
-              remote.map((service) => (
-                <ServiceRow key={service.name} service={service} showMetrics />
-              ))
-            ) : (
-              <EmptyState icon="🌐" text="No remote providers" />
-            )}
-          </div>
-        </Card>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={services.length > 0 ? 'success' : 'secondary'} size="sm">
+            {services.length}
+          </Badge>
+          <StatusIndicator
+            status={allHealthy ? 'online' : services.length > 0 ? 'degraded' : 'offline'}
+            size="sm"
+          />
+        </div>
       </div>
 
-      {/* LLM Metrics Section */}
-      {llmMetrics && Object.keys(llmMetrics).length > 0 && (
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="text-2xl">🤖</div>
-            <h3 className="text-lg font-semibold">LLM Performance Metrics</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Object.entries(llmMetrics).map(([key, value]) => (
-              <div key={key} className="text-center">
-                <div className="text-2xl font-bold text-cyan-400">{value}</div>
-                <div className="text-sm text-gh-fg-muted capitalize">
-                  {key.replace(/_/g, ' ')}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {/* Service list - compact */}
+      <div className="p-3 space-y-2">
+        {services.length > 0 ? (
+          services.map(service => (
+            <CompactServiceRow key={service.name} service={service} theme={theme} />
+          ))
+        ) : (
+          <EmptyState icon={theme.icon} text={`No ${type} providers`} />
+        )}
+      </div>
     </div>
   );
 };
 
 /**
  * Compact service row component
+ */
+const CompactServiceRow = ({ service, theme }) => {
+  const { name, healthy, info } = service;
+  const [expanded, setExpanded] = React.useState(false);
+  const model = info?.default_model || info?.model || 'auto-detect';
+
+  return (
+    <div className="glass rounded-lg p-2 hover:bg-white/5 transition-all">
+      <div
+        className="flex items-center gap-2 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {/* Status dot */}
+        <div className={cn(
+          'w-2 h-2 rounded-full flex-shrink-0',
+          healthy ? 'bg-cyan-400 pulse-neon' : 'bg-red-400'
+        )} />
+
+        {/* Name + Model in one line */}
+        <div className="flex-1 min-w-0 flex items-baseline gap-2">
+          <span className="text-sm font-medium text-white truncate">
+            {name}
+          </span>
+          <span className="text-xs text-gh-fg-subtle truncate">
+            {model}
+          </span>
+        </div>
+
+        {/* Inline metrics for HTTP services */}
+        {info?.base_url && healthy && (
+          <div className="hidden md:flex items-center gap-2 text-xs">
+            <span className="text-cyan-400">⚡ ~0ms</span>
+            <span className="text-purple-400">📊 Ready</span>
+          </div>
+        )}
+
+        {/* Status badge */}
+        <div className={cn(
+          'w-10 h-5 rounded text-xs font-medium flex items-center justify-center flex-shrink-0',
+          healthy
+            ? 'bg-cyan-500/20 text-cyan-400'
+            : 'bg-red-500/20 text-red-400'
+        )}>
+          {healthy ? 'UP' : 'DN'}
+        </div>
+      </div>
+
+      {/* Expandable details */}
+      {expanded && info?.base_url && (
+        <div className="mt-2 pt-2 border-t border-white/5 text-xs">
+          <span className="text-gh-fg-subtle font-mono break-all">{info.base_url}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Legacy service row component (kept for backward compatibility)
  */
 const ServiceRow = ({ service, showMetrics = false }) => {
   const { name, healthy, info } = service;
