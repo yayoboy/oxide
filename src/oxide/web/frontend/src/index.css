@@ -5,7 +5,7 @@
 /* Glassmorphism and Neon Theme */
 @layer base {
   :root {
-    /* Neon colors */
+    /* Neon colors - Dark Mode (default) */
     --neon-cyan: #00ffff;
     --neon-magenta: #ff00ff;
     --neon-purple: #9d4edd;
@@ -13,10 +13,31 @@
     --neon-green: #7ae582;
     --neon-pink: #f72585;
 
-    /* Glass effect */
+    /* Glass effect - Dark Mode */
     --glass-border: rgba(255, 255, 255, 0.18);
     --glass-bg: rgba(13, 17, 23, 0.4);
     --glass-bg-hover: rgba(13, 17, 23, 0.6);
+  }
+
+  /* Light Mode Theme */
+  .light {
+    /* Neon colors for light mode */
+    --neon-cyan: #0891b2;
+    --neon-magenta: #db2777;
+    --neon-purple: #7c3aed;
+    --neon-blue: #0ea5e9;
+    --neon-green: #10b981;
+    --neon-pink: #ec4899;
+
+    /* Glass effect - Light Mode */
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-bg-hover: rgba(255, 255, 255, 0.9);
+  }
+
+  .light body {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
+    color: #1e293b;
   }
 }
 

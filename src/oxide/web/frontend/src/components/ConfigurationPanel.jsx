@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Alert, AlertDescription } from './ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
+import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
+import { Alert, AlertDescription } from './ui/Alert';
 
 const ConfigurationPanel = () => {
   const [config, setConfig] = useState(null);
@@ -335,7 +335,7 @@ const ConfigurationPanel = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-gh-fg-muted w-20">Parallel:</span>
                           <span className="text-white">
-                            >{rule.parallel_threshold_files} files
+                            {rule.parallel_threshold_files} files
                           </span>
                         </div>
                       )}

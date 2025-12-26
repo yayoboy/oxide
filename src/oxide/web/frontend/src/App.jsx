@@ -3,6 +3,8 @@
  * Oxide LLM Orchestrator Dashboard with Glassmorphism UI
  */
 import React, { useState } from 'react';
+import ThemeProvider from './components/ThemeProvider';
+import ThemeToggle from './components/ThemeToggle';
 import CompactDashboard from './components/CompactDashboard';
 import TaskHistory from './components/TaskHistory';
 import TaskExecutor from './components/TaskExecutor';
@@ -21,7 +23,8 @@ function App() {
   const [taskHistoryKey, setTaskHistoryKey] = useState(0);
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <ThemeProvider>
+      <div className="min-h-screen relative overflow-hidden bg-gh-canvas dark:bg-gh-canvas light:bg-gray-50">
       {/* Animated background particles */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" />
@@ -49,8 +52,11 @@ function App() {
                 </div>
               </div>
 
-              {/* Compact Metrics */}
+              {/* Compact Metrics + Theme Toggle */}
               <div className="flex items-center gap-3">
+                {/* Theme Toggle */}
+                <ThemeToggle />
+
                 {/* WebSocket Status */}
                 {wsConnected && (
                   <div className="glass rounded-full px-3 py-1.5 flex items-center gap-1.5">
@@ -189,6 +195,7 @@ function App() {
         </footer>
       </main>
     </div>
+    </ThemeProvider>
   );
 }
 

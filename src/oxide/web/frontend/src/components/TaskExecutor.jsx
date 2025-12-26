@@ -3,6 +3,9 @@
  * Allows users to create and execute tasks with manual service selection
  */
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { tasksAPI } from '../api/client';
 import { useServices } from '../hooks/useServices';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -177,9 +180,44 @@ const TaskExecutor = ({ onTaskCompleted }) => {
               )}
             </div>
             <div className="p-4 bg-gh-canvas border border-gh-border rounded-md max-h-80 overflow-y-auto">
-              <pre className="text-sm text-gh-fg-DEFAULT whitespace-pre-wrap break-words font-mono">
-                {result || 'Waiting for response...'}
-              </pre>
+              {result ? (
+                <ReactMarkdown
+                  className="prose prose-invert max-w-none text-sm"
+                  components={{
+                    code({ node, inline, className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={vscDarkPlus}
+                          language={match[1]}
+                          PreTag="div"
+                          className="rounded-lg my-2"
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code className="bg-white/10 px-1.5 py-0.5 rounded text-cyan-400 font-mono" {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    p: ({ children }) => <p className="text-gh-fg-DEFAULT mb-2">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc list-inside text-gh-fg-DEFAULT mb-2">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside text-gh-fg-DEFAULT mb-2">{children}</ol>,
+                    h1: ({ children }) => <h1 className="text-xl font-bold text-white mb-2">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-lg font-bold text-white mb-2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-base font-bold text-white mb-2">{children}</h3>,
+                    a: ({ children, href }) => <a href={href} className="text-cyan-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                  }}
+                >
+                  {result}
+                </ReactMarkdown>
+              ) : (
+                <div className="text-sm text-gh-fg-muted font-mono">
+                  Waiting for response...
+                </div>
+              )}
             </div>
           </div>
         )}
