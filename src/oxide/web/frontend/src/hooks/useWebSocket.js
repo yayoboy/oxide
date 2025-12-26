@@ -1,16 +1,21 @@
 /**
  * React hook for WebSocket connection with event subscriptions
+ * Integrated with Zustand global state
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import useStore from '../store/useStore';
 
 const WS_URL = 'ws://localhost:8000/ws';
 const RECONNECT_DELAY = 3000; // 3 seconds
 const PING_INTERVAL = 30000; // 30 seconds
 
 export const useWebSocket = () => {
-  const [connected, setConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
-  const [error, setError] = useState(null);
+
+  // Use Zustand store for connection status
+  const connected = useStore((state) => state.wsConnected);
+  const setWsConnected = useStore((state) => state.setWsConnected);
+  const setWsError = useStore((state) => state.setWsError);
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -30,8 +35,8 @@ export const useWebSocket = () => {
       ws.onopen = () => {
         console.log('[WebSocket] Connected');
         if (mountedRef.current) {
-          setConnected(true);
-          setError(null);
+          setWsConnected(true);
+          setWsError(null);
         }
 
         // Start ping interval
@@ -80,14 +85,14 @@ export const useWebSocket = () => {
       ws.onerror = (event) => {
         console.error('[WebSocket] Error:', event);
         if (mountedRef.current) {
-          setError('WebSocket connection error');
+          setWsError('WebSocket connection error');
         }
       };
 
       ws.onclose = () => {
         console.log('[WebSocket] Disconnected');
         if (mountedRef.current) {
-          setConnected(false);
+          setWsConnected(false);
         }
 
         // Clear ping interval
@@ -110,10 +115,10 @@ export const useWebSocket = () => {
     } catch (err) {
       console.error('[WebSocket] Connection error:', err);
       if (mountedRef.current) {
-        setError(err.message);
+        setWsError(err.message);
       }
     }
-  }, []);
+  }, [setWsConnected, setWsError]);
 
   // Subscribe to specific message types
   const subscribe = useCallback((type, callback) => {
@@ -164,6 +169,8 @@ export const useWebSocket = () => {
       }
     };
   }, [connect]);
+
+  const error = useStore((state) => state.wsError);
 
   return {
     connected,

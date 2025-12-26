@@ -1,29 +1,32 @@
 /**
  * React hook for managing services data with WebSocket updates
+ * Integrated with Zustand global state
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { servicesAPI } from '../api/client';
 import { useWebSocket } from './useWebSocket';
+import useStore from '../store/useStore';
 
 export const useServices = () => {
-  const [services, setServices] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
   const { connected, subscribe } = useWebSocket();
+
+  // Get state and actions from Zustand store
+  const services = useStore((state) => state.services);
+  const loading = useStore((state) => state.servicesLoading);
+  const error = useStore((state) => state.servicesError);
+  const setServices = useStore((state) => state.setServices);
+  const setServicesLoading = useStore((state) => state.setServicesLoading);
+  const setServicesError = useStore((state) => state.setServicesError);
 
   const fetchServices = useCallback(async () => {
     try {
-      setLoading(true);
+      setServicesLoading(true);
       const response = await servicesAPI.list();
       setServices(response.data);
-      setError(null);
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      setServicesError(err.message);
     }
-  }, []);
+  }, [setServices, setServicesLoading, setServicesError]);
 
   // Initial fetch
   useEffect(() => {
@@ -36,13 +39,12 @@ export const useServices = () => {
       const unsubscribe = subscribe('service_status', (message) => {
         if (message.status) {
           setServices(message.status);
-          setLoading(false);
         }
       });
 
       return unsubscribe;
     }
-  }, [connected, subscribe]);
+  }, [connected, subscribe, setServices]);
 
   return { services, loading, error, refresh: fetchServices };
 };
