@@ -51,13 +51,27 @@ def mock_classifier():
 @pytest.fixture
 def mock_router():
     """Mock TaskRouter"""
-    router = AsyncMock()
+    router = MagicMock()  # Use MagicMock instead of AsyncMock
     router.route = AsyncMock(return_value=RouterDecision(
         primary_service='gemini',
         fallback_services=['qwen', 'ollama_local'],
         execution_mode='single',
         timeout_seconds=120
     ))
+    router.get_routing_rules_summary = MagicMock(return_value={
+        'quick_query': {
+            'primary': 'ollama_local',
+            'fallback': ['qwen'],
+            'parallel_threshold': None,
+            'timeout': 30
+        },
+        'code_review': {
+            'primary': 'qwen',
+            'fallback': ['gemini'],
+            'parallel_threshold': None,
+            'timeout': 120
+        }
+    })
     return router
 
 
@@ -85,8 +99,15 @@ def mock_cost_tracker():
 @pytest.fixture
 def mock_adapter_success():
     """Mock adapter with successful execution"""
-    adapter = AsyncMock()
-    adapter.execute = AsyncMock(return_value=async_gen(['Hello', ' ', 'World']))
+    adapter = MagicMock()
+
+    # Properly mock async generator
+    async def mock_execute(*args, **kwargs):
+        for chunk in ['Hello', ' ', 'World']:
+            yield chunk
+
+    # Wrap in MagicMock to track calls
+    adapter.execute = MagicMock(side_effect=lambda *args, **kwargs: mock_execute(*args, **kwargs))
     adapter.health_check = AsyncMock(return_value=True)
     adapter.get_service_info = MagicMock(return_value={'type': 'cli', 'model': 'gemini-pro'})
     return adapter
@@ -95,8 +116,14 @@ def mock_adapter_success():
 @pytest.fixture
 def mock_adapter_fail():
     """Mock adapter that fails"""
-    adapter = AsyncMock()
-    adapter.execute = AsyncMock(side_effect=Exception("Connection timeout"))
+    adapter = MagicMock()
+
+    # Async generator that raises exception
+    async def mock_execute_fail(*args, **kwargs):
+        raise Exception("Connection timeout")
+        yield  # Make it a generator (unreachable)
+
+    adapter.execute = MagicMock(side_effect=lambda *args, **kwargs: mock_execute_fail(*args, **kwargs))
     adapter.health_check = AsyncMock(return_value=False)
     adapter.get_service_info = MagicMock(return_value={'type': 'cli'})
     return adapter
@@ -105,11 +132,16 @@ def mock_adapter_fail():
 @pytest.fixture
 def mock_adapter_unavailable():
     """Mock adapter that's unavailable"""
-    adapter = AsyncMock()
-    adapter.execute = AsyncMock(
-        side_effect=ServiceUnavailableError('gemini', 'Service is down')
-    )
+    adapter = MagicMock()
+
+    # Async generator that raises ServiceUnavailableError
+    async def mock_execute_unavailable(*args, **kwargs):
+        raise ServiceUnavailableError('test_service', 'Service is down')
+        yield  # Make it a generator (unreachable)
+
+    adapter.execute = MagicMock(side_effect=lambda *args, **kwargs: mock_execute_unavailable(*args, **kwargs))
     adapter.health_check = AsyncMock(return_value=False)
+    adapter.get_service_info = MagicMock(return_value={'type': 'cli'})
     return adapter
 
 
@@ -591,14 +623,20 @@ class TestOrchestratorServiceManagement:
         # Get status
         status = await orchestrator.get_service_status()
 
-        # Verify structure
-        assert 'services' in status
-        assert 'gemini' in status['services']
-        assert 'qwen' in status['services']
+        # Verify structure - service names are top-level keys
+        assert 'gemini' in status
+        assert 'qwen' in status
+        assert 'ollama_local' in status
 
-        # Verify health checks were called
-        for adapter in orchestrator.adapters.values():
-            adapter.health_check.assert_called_once()
+        # Verify each service has required fields
+        for service_name, service_status in status.items():
+            assert 'enabled' in service_status
+            assert 'healthy' in service_status
+            assert 'info' in service_status
+            assert service_status['healthy'] is True  # Mock always returns True
+
+        # Verify health_check was called (all adapters share same mock, so called 3 times total)
+        assert orchestrator.adapters['gemini'].health_check.call_count == 3
 
     @pytest.mark.asyncio
     async def test_test_service(self, orchestrator_with_mocks):
@@ -614,9 +652,10 @@ class TestOrchestratorServiceManagement:
         assert call_args[0][0] == 'Hello test'
 
         # Verify result structure
-        assert 'service' in result
         assert 'success' in result
-        assert result['service'] == 'gemini'
+        assert result['success'] is True
+        assert 'response' in result
+        assert 'response_length' in result
 
     def test_get_adapters_info(self, orchestrator_with_mocks):
         """Test get_adapters_info returns adapter information"""
