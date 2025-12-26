@@ -17,8 +17,8 @@ import { useMetrics } from './hooks/useMetrics';
 import { useWebSocket } from './hooks/useWebSocket';
 
 function App() {
-  const { services, loading: servicesLoading, error: servicesError } = useServices(5000);
-  const { metrics, loading: metricsLoading } = useMetrics(2000);
+  const { services, loading: servicesLoading, error: servicesError } = useServices();
+  const { metrics, loading: metricsLoading } = useMetrics();
   const { connected: wsConnected } = useWebSocket();
   const [taskHistoryKey, setTaskHistoryKey] = useState(0);
 
