@@ -141,6 +141,46 @@ services:
 - The adapter will query `/v1/models` endpoint to find loaded model
 - Best match from `preferred_models` will be selected
 
+**How Preferred Models Work:**
+1. **Exact Match**: If a preferred model name exactly matches an available model, it's selected immediately
+2. **Partial Match**: If no exact match, searches for models containing the preferred name (case-insensitive)
+   - Example: `"qwen"` matches `"qwen2.5-coder-7b"`
+   - Example: `"coder"` matches `"qwen2.5-coder-7b"` or `"deepseek-coder-6.7b"`
+3. **Priority Order**: Checks preferred models in the order specified
+4. **Fallback**: If no preferred models match, selects the first available model
+
+**Common Error Messages:**
+
+*Connection Refused:*
+```
+Cannot connect to lmstudio at http://localhost:1234
+Please check:
+  1. Is LM Studio running?
+  2. Is the server started in LM Studio (Local Server tab)?
+  3. Is the base_url correct in your configuration?
+  4. Is the port accessible? (Network/firewall issues)
+```
+
+*Model Not Found:*
+```
+Model 'qwen2.5-coder-7b' not found in lmstudio.
+Please ensure the model is loaded in LM Studio.
+Available models can be checked via the web UI.
+```
+
+*Server Error (500):*
+```
+lmstudio internal error. This may indicate the model crashed or ran out of memory.
+Try restarting LM Studio or loading a smaller model.
+```
+
+**Troubleshooting:**
+- Verify LM Studio is running and server is started (green indicator in Local Server tab)
+- Check the base_url includes `/v1` prefix for OpenAI-compatible API
+- Ensure at least one model is loaded in LM Studio
+- For memory issues, try a smaller/quantized model (7B instead of 13B, Q4 instead of Q8)
+- Check firewall settings if connecting to remote LM Studio instance
+
 ### Routing Rules Section
 
 Define how tasks are routed to services based on task type.

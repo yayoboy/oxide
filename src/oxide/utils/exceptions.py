@@ -66,9 +66,12 @@ class ExecutionError(BaseOxideError):
 class TimeoutError(ExecutionError):
     """Task execution timed out."""
 
-    def __init__(self, service_name: str, timeout_seconds: int):
+    def __init__(self, service_name: str, timeout_seconds: int, custom_message: str = None):
         self.service_name = service_name
         self.timeout_seconds = timeout_seconds
-        super().__init__(
-            f"Task execution on '{service_name}' timed out after {timeout_seconds}s"
-        )
+        if custom_message:
+            super().__init__(custom_message)
+        else:
+            super().__init__(
+                f"Task execution on '{service_name}' timed out after {timeout_seconds}s"
+            )

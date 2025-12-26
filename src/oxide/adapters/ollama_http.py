@@ -42,6 +42,7 @@ class OllamaHTTPAdapter(BaseAdapter):
 
         self.api_type = config.get("api_type", "ollama")
         self.default_model = config.get("default_model")
+        self.preferred_models = config.get("preferred_models", [])
 
         # Enhanced features configuration
         self.auto_start = config.get("auto_start", True)  # Auto-start service if down
@@ -80,7 +81,8 @@ class OllamaHTTPAdapter(BaseAdapter):
                 base_url=self.base_url,
                 api_type=self.api_type,
                 auto_start=self.auto_start,
-                auto_detect_model=self.auto_detect_model
+                auto_detect_model=self.auto_detect_model,
+                preferred_models=self.preferred_models
             )
 
             if not health["healthy"]:
@@ -318,9 +320,36 @@ class OllamaHTTPAdapter(BaseAdapter):
                 async with session.post(url, json=payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        raise HTTPAdapterError(
-                            f"OpenAI API error (status {response.status}): {error_text}"
-                        )
+
+                        # Provide specific error messages for common LM Studio issues
+                        if response.status == 404:
+                            if "model" in error_text.lower():
+                                raise HTTPAdapterError(
+                                    f"Model '{model}' not found in {self.service_name}. "
+                                    f"Please ensure the model is loaded in LM Studio. "
+                                    f"Available models can be checked via the web UI."
+                                )
+                            else:
+                                raise HTTPAdapterError(
+                                    f"Endpoint not found. Is {self.service_name} running? "
+                                    f"Check that the base_url is correct: {self.base_url}"
+                                )
+                        elif response.status == 500:
+                            raise HTTPAdapterError(
+                                f"{self.service_name} internal error: {error_text}. "
+                                f"This may indicate the model crashed or ran out of memory. "
+                                f"Try restarting LM Studio or loading a smaller model."
+                            )
+                        elif response.status == 503:
+                            raise ServiceUnavailableError(
+                                self.service_name,
+                                f"Service temporarily unavailable. The model may still be loading. "
+                                f"Wait a moment and try again."
+                            )
+                        else:
+                            raise HTTPAdapterError(
+                                f"{self.service_name} API error (status {response.status}): {error_text}"
+                            )
 
                     # Stream SSE (Server-Sent Events) format
                     async for line_bytes in response.content:
@@ -347,12 +376,24 @@ class OllamaHTTPAdapter(BaseAdapter):
                                 self.logger.warning(f"Invalid JSON in SSE: {json_str[:100]}")
 
         except aiohttp.ClientConnectionError as e:
-            raise ServiceUnavailableError(
-                self.service_name,
-                f"Cannot connect to {self.base_url}: {e}"
+            # Provide helpful error message for connection failures
+            error_msg = (
+                f"Cannot connect to {self.service_name} at {self.base_url}. "
+                f"Please check:\n"
+                f"  1. Is LM Studio running?\n"
+                f"  2. Is the server started in LM Studio (Local Server tab)?\n"
+                f"  3. Is the base_url correct in your configuration?\n"
+                f"  4. Is the port accessible? (Network/firewall issues)\n"
+                f"Original error: {e}"
             )
+            raise ServiceUnavailableError(self.service_name, error_msg)
         except asyncio.TimeoutError:
-            raise TimeoutError(self.service_name, timeout or 0)
+            timeout_msg = (
+                f"Request to {self.service_name} timed out after {timeout}s. "
+                f"The model may be too large or the system is under heavy load. "
+                f"Try increasing the timeout or using a smaller/faster model."
+            )
+            raise TimeoutError(self.service_name, timeout or 0, timeout_msg)
         except Exception as e:
             if not isinstance(e, (HTTPAdapterError, ServiceUnavailableError, TimeoutError)):
                 raise HTTPAdapterError(f"Unexpected error: {e}")

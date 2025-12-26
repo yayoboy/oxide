@@ -193,7 +193,7 @@ class ServiceManager:
                             return models
 
             elif api_type == "openai_compatible":
-                url = f"{base_url.rstrip('/')}/models"
+                url = f"{base_url.rstrip('/')}/v1/models"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as response:
                         if response.status == 200:
@@ -255,7 +255,8 @@ class ServiceManager:
         base_url: str,
         api_type: str = "ollama",
         auto_start: bool = True,
-        auto_detect_model: bool = True
+        auto_detect_model: bool = True,
+        preferred_models: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Comprehensive service health check with auto-recovery.
@@ -266,6 +267,7 @@ class ServiceManager:
             api_type: "ollama" or "openai_compatible"
             auto_start: Auto-start service if down
             auto_detect_model: Auto-detect model if not configured
+            preferred_models: List of preferred model names (priority order)
 
         Returns:
             Dict with status, healthy, models, recommended_model
@@ -298,8 +300,10 @@ class ServiceManager:
 
             # Auto-detect recommended model
             if auto_detect_model:
-                # Preferred models for different service types
-                if api_type == "ollama":
+                # Use provided preferred_models or fallback to defaults
+                if preferred_models:
+                    preferred = preferred_models
+                elif api_type == "ollama":
                     preferred = ["qwen2.5-coder", "codellama", "llama3", "mistral"]
                 else:  # openai_compatible (LM Studio)
                     preferred = ["qwen", "coder", "code", "llama"]
