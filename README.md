@@ -13,6 +13,13 @@ Oxide is a comprehensive platform for managing and orchestrating multiple Large 
 - **Parallel Execution**: Distribute large codebase analysis across multiple LLMs
 - **Manual Override**: Select specific services for individual tasks
 
+### 🚀 Local LLM Management (NEW!)
+- **Auto-Start Ollama**: Automatically starts Ollama if not running (macOS, Linux, Windows)
+- **Auto-Detect Models**: Discovers available models without manual configuration
+- **Smart Model Selection**: Chooses best model based on preferences and availability
+- **Auto-Recovery**: Retries with service restart on temporary failures
+- **Zero-Config LM Studio**: Works with LM Studio without model name configuration
+
 ### 🌐 Web Dashboard
 - **Real-time Monitoring**: Live metrics for CPU, memory, task execution, and service health
 - **Task Executor**: Execute tasks directly from the browser with service selection
@@ -877,17 +884,107 @@ Oxide creates the following files in `~/.oxide/`:
 }
 ```
 
-## 🎯 Usage Examples
+## 🎯 Local LLM Management
 
-### Example 1: Simple Query
+### Auto-Start Ollama
+
+Oxide can automatically start Ollama if it's not running:
+
+```yaml
+# config/default.yaml
+services:
+  ollama_local:
+    type: http
+    base_url: "http://localhost:11434"
+    api_type: ollama
+    enabled: true
+    auto_start: true              # 🔥 Auto-start if not running
+    auto_detect_model: true       # 🔥 Auto-detect best model
+    max_retries: 2                # Retry on failures
+    retry_delay: 2                # Seconds between retries
+```
+
+**What happens:**
+1. First task execution checks if Ollama is running
+2. If not, automatically starts Ollama via:
+   - macOS: Opens Ollama.app or runs `ollama serve`
+   - Linux: Uses systemd or runs `ollama serve`
+   - Windows: Runs `ollama serve` as detached process
+3. Waits up to 30s for Ollama to be ready
+4. Proceeds with task execution
+
+### Auto-Detect Models
+
+No need to configure model names manually:
+
+```yaml
+lmstudio:
+  type: http
+  base_url: "http://192.168.1.33:1234/v1"
+  api_type: openai_compatible
+  enabled: true
+  default_model: null           # 🔥 Will auto-detect
+  auto_detect_model: true
+  preferred_models:             # Priority order
+    - "qwen"                    # Matches: qwen/qwen2.5-coder-14b
+    - "coder"                   # Matches: mistralai/codestral-22b
+    - "deepseek"                # Matches: deepseek/deepseek-r1
+```
+
+**Smart Selection Algorithm:**
+1. Fetches available models from service
+2. Tries exact match with preferred models
+3. Tries partial match (e.g., "qwen" matches "qwen2.5-coder:7b")
+4. Falls back to first available model
+
+### Service Health Monitoring
 
 ```python
-# Auto-routing
+from oxide.utils.service_manager import get_service_manager
+
+service_manager = get_service_manager()
+
+# Comprehensive health check with auto-recovery
+health = await service_manager.ensure_service_healthy(
+    service_name="ollama_local",
+    base_url="http://localhost:11434",
+    api_type="ollama",
+    auto_start=True,           # Try to start if down
+    auto_detect_model=True     # Detect available models
+)
+
+print(f"Healthy: {health['healthy']}")
+print(f"Models: {health['models']}")
+print(f"Recommended: {health['recommended_model']}")
+```
+
+### Background Health Monitoring
+
+```python
+# Start monitoring (checks every 60s, auto-recovers on failure)
+await service_manager.start_health_monitoring(
+    service_name="ollama_local",
+    base_url="http://localhost:11434",
+    interval=60,
+    auto_recovery=True
+)
+```
+
+## 🎯 Usage Examples
+
+### Example 1: Simple Query (Auto-Start Enabled)
+
+```python
+# Ollama will auto-start if not running!
 async for chunk in orchestrator.execute_task("What is 2+2?"):
     print(chunk, end="")
 
-# Routes to: ollama_local (quick query)
-# Result: "4"
+# What happens:
+# 1. Checks if Ollama is running → not running
+# 2. Auto-starts Ollama (takes ~5s)
+# 3. Auto-detects model: qwen2.5-coder:7b
+# 4. Executes task
+# 5. Returns: "4"
 ```
 
 ### Example 2: Code Review with Manual Selection

@@ -52,5 +52,18 @@ def setup_logging(
     return logger
 
 
+def get_logger(name: str = "oxide") -> logging.Logger:
+    """
+    Get a logger instance with the given name.
+
+    Args:
+        name: Logger name (typically __name__)
+
+    Returns:
+        Logger instance
+    """
+    return logging.getLogger(name)
+
+
 # Create default logger
 logger = setup_logging()

@@ -25,16 +25,23 @@ services:
       - debugging
       - refactoring
 
-  # Ollama Local - Fast local inference
+  # Ollama Local - Fast local inference with auto-start
   ollama_local:
     type: http
     base_url: "http://localhost:11434"
     api_type: ollama
     enabled: true
+    # Model configuration (can be null for auto-detection)
     default_model: "qwen2.5-coder:7b"
     models:
       - "qwen2.5-coder:7b"
       - "qwen2.5-coder:14b"
+      - "qwen3-coder:latest"
+    # Enhanced features
+    auto_start: true              # Auto-start Ollama if not running
+    auto_detect_model: true       # Auto-detect best model if default_model fails
+    max_retries: 2                # Retry attempts on failure
+    retry_delay: 2                # Seconds between retries
     capabilities:
       - quick_query
       - code_generation
@@ -45,8 +52,12 @@ services:
     type: http
     base_url: "http://192.168.1.46:11434"
     api_type: ollama
-    enabled: true  # Enable manually after setup
-    default_model: "qwen2.5:7b"
+    enabled: false  # Enable manually after setup
+    default_model: null           # Will auto-detect
+    auto_start: false             # Can't auto-start remote
+    auto_detect_model: true       # Auto-detect available models
+    max_retries: 2
+    retry_delay: 2
     capabilities:
       - parallel_processing
       - code_generation
@@ -54,10 +65,20 @@ services:
   # LM Studio - OpenAI-compatible API on laptop
   lmstudio:
     type: http
-    base_url: "http://192.168.1.50:1234/v1"
+    base_url: "http://192.168.1.33:1234/v1"
     api_type: openai_compatible
-    enabled: false  # Enable manually after setup
-    default_model: null  # Auto-detected via /models
+    enabled: false  # Enable manually after setup (change to true when ready)
+    default_model: null           # Will auto-detect via /v1/models
+    auto_start: false             # LM Studio must be started manually
+    auto_detect_model: true       # CRITICAL: Auto-detect model (LM Studio doesn't persist model names)
+    max_retries: 2
+    retry_delay: 2
+    # Preferred models to look for (in priority order)
+    preferred_models:
+      - "qwen"
+      - "coder"
+      - "codellama"
+      - "deepseek"
 
 # Routing Rules - Define how tasks are routed to services
 routing_rules:
