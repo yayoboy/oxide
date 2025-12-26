@@ -1,16 +1,20 @@
 /**
- * React hook for monitoring metrics
+ * React hook for monitoring metrics with WebSocket updates
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { monitoringAPI } from '../api/client';
+import { useWebSocket } from './useWebSocket';
 
-export const useMetrics = (refreshInterval = 2000) => {
+export const useMetrics = () => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchMetrics = async () => {
+  const { connected, subscribe } = useWebSocket();
+
+  const fetchMetrics = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await monitoringAPI.getMetrics();
       setMetrics(response.data);
       setError(null);
@@ -19,16 +23,26 @@ export const useMetrics = (refreshInterval = 2000) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch
   useEffect(() => {
     fetchMetrics();
+  }, [fetchMetrics]);
 
-    if (refreshInterval > 0) {
-      const interval = setInterval(fetchMetrics, refreshInterval);
-      return () => clearInterval(interval);
+  // Subscribe to WebSocket updates
+  useEffect(() => {
+    if (connected) {
+      const unsubscribe = subscribe('metrics', (message) => {
+        if (message.data) {
+          setMetrics(message.data);
+          setLoading(false);
+        }
+      });
+
+      return unsubscribe;
     }
-  }, [refreshInterval]);
+  }, [connected, subscribe]);
 
   return { metrics, loading, error, refresh: fetchMetrics };
 };

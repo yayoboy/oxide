@@ -51,6 +51,17 @@ export const CardTitle = React.forwardRef(({ className, children, ...props }, re
 ));
 CardTitle.displayName = 'CardTitle';
 
+export const CardDescription = React.forwardRef(({ className, children, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn('text-sm text-gh-fg-muted mt-1', className)}
+    {...props}
+  >
+    {children}
+  </p>
+));
+CardDescription.displayName = 'CardDescription';
+
 export const CardContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}

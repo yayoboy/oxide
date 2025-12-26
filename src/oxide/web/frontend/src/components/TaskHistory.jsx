@@ -1,21 +1,25 @@
 /**
  * Task History Component
- * Displays recent task execution history with modern UI
+ * Displays recent task execution history with modern UI and WebSocket updates
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { tasksAPI } from '../api/client';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { formatDuration, formatTimestamp } from '../lib/utils';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const TaskHistory = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchTasks = async () => {
+  const { connected, subscribe } = useWebSocket();
+
+  const fetchTasks = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await tasksAPI.list(null, 10);
       setTasks(response.data.tasks || []);
       setError(null);
@@ -24,13 +28,47 @@ const TaskHistory = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch
   useEffect(() => {
     fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [fetchTasks]);
+
+  // Subscribe to task events via WebSocket
+  useEffect(() => {
+    if (connected) {
+      // Subscribe to task_start events
+      const unsubStart = subscribe('task_start', (message) => {
+        // Refresh task list when a new task starts
+        fetchTasks();
+      });
+
+      // Subscribe to task_complete events
+      const unsubComplete = subscribe('task_complete', (message) => {
+        // Refresh task list when a task completes
+        fetchTasks();
+      });
+
+      // Subscribe to task_progress events
+      const unsubProgress = subscribe('task_progress', (message) => {
+        // Update specific task progress if needed
+        setTasks(prevTasks =>
+          prevTasks.map(task =>
+            task.task_id === message.task_id
+              ? { ...task, status: 'running' }
+              : task
+          )
+        );
+      });
+
+      return () => {
+        unsubStart();
+        unsubComplete();
+        unsubProgress();
+      };
+    }
+  }, [connected, subscribe, fetchTasks]);
 
   const getStatusBadge = (status) => {
     const statusMap = {

@@ -1,16 +1,20 @@
 /**
- * React hook for managing machines data
+ * React hook for managing machines data with WebSocket updates
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { machinesAPI } from '../api/client';
+import { useWebSocket } from './useWebSocket';
 
-export const useMachines = (refreshInterval = 3000) => {
+export const useMachines = () => {
   const [machines, setMachines] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchMachines = async () => {
+  const { connected, subscribe } = useWebSocket();
+
+  const fetchMachines = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await machinesAPI.list();
       setMachines(response.data);
       setError(null);
@@ -19,16 +23,28 @@ export const useMachines = (refreshInterval = 3000) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch
   useEffect(() => {
     fetchMachines();
+  }, [fetchMachines]);
 
-    if (refreshInterval > 0) {
-      const interval = setInterval(fetchMachines, refreshInterval);
-      return () => clearInterval(interval);
+  // Subscribe to WebSocket updates for machine metrics
+  useEffect(() => {
+    if (connected) {
+      const unsubscribe = subscribe('metrics', (message) => {
+        // Machines data might be part of cluster metrics in the future
+        // For now, keep using REST API with manual refresh
+        if (message.data?.machines) {
+          setMachines(message.data.machines);
+          setLoading(false);
+        }
+      });
+
+      return unsubscribe;
     }
-  }, [refreshInterval]);
+  }, [connected, subscribe]);
 
   return { machines, loading, error, refresh: fetchMachines };
 };

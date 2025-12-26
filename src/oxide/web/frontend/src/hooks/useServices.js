@@ -1,16 +1,20 @@
 /**
- * React hook for managing services data
+ * React hook for managing services data with WebSocket updates
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { servicesAPI } from '../api/client';
+import { useWebSocket } from './useWebSocket';
 
-export const useServices = (refreshInterval = 5000) => {
+export const useServices = () => {
   const [services, setServices] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchServices = async () => {
+  const { connected, subscribe } = useWebSocket();
+
+  const fetchServices = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await servicesAPI.list();
       setServices(response.data);
       setError(null);
@@ -19,16 +23,26 @@ export const useServices = (refreshInterval = 5000) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch
   useEffect(() => {
     fetchServices();
+  }, [fetchServices]);
 
-    if (refreshInterval > 0) {
-      const interval = setInterval(fetchServices, refreshInterval);
-      return () => clearInterval(interval);
+  // Subscribe to WebSocket updates
+  useEffect(() => {
+    if (connected) {
+      const unsubscribe = subscribe('service_status', (message) => {
+        if (message.status) {
+          setServices(message.status);
+          setLoading(false);
+        }
+      });
+
+      return unsubscribe;
     }
-  }, [refreshInterval]);
+  }, [connected, subscribe]);
 
   return { services, loading, error, refresh: fetchServices };
 };

@@ -27,6 +27,72 @@ orchestrator: Optional[Orchestrator] = None
 ws_manager: Optional[WebSocketManager] = None
 
 
+async def broadcast_periodic_updates():
+    """Background task to broadcast periodic updates to WebSocket clients."""
+    import psutil
+
+    while True:
+        try:
+            # Only broadcast if there are connected clients
+            if ws_manager and ws_manager.get_connection_count() > 0 and orchestrator:
+                # Broadcast service status
+                service_status = await orchestrator.get_service_status()
+                await ws_manager.broadcast_service_status("all", service_status)
+
+                # Broadcast metrics
+                from ...utils.task_storage import get_task_storage
+                task_storage = get_task_storage()
+                stats = task_storage.get_stats()
+
+                # Count services
+                total_services = len(service_status)
+                enabled_services = sum(1 for s in service_status.values() if s.get("enabled"))
+                healthy_services = sum(1 for s in service_status.values() if s.get("healthy"))
+
+                # Task stats
+                total_tasks = stats["total"]
+                running_tasks = stats["by_status"].get("running", 0)
+                completed_tasks = stats["by_status"].get("completed", 0)
+                failed_tasks = stats["by_status"].get("failed", 0)
+
+                # System resources
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                memory = psutil.virtual_memory()
+
+                metrics = {
+                    "services": {
+                        "total": total_services,
+                        "enabled": enabled_services,
+                        "healthy": healthy_services,
+                        "unhealthy": enabled_services - healthy_services
+                    },
+                    "tasks": {
+                        "total": total_tasks,
+                        "running": running_tasks,
+                        "completed": completed_tasks,
+                        "failed": failed_tasks,
+                        "queued": total_tasks - running_tasks - completed_tasks - failed_tasks
+                    },
+                    "system": {
+                        "cpu_percent": cpu_percent,
+                        "memory_percent": memory.percent,
+                        "memory_used_mb": round(memory.used / (1024 * 1024), 2),
+                        "memory_total_mb": round(memory.total / (1024 * 1024), 2)
+                    },
+                    "websocket": {
+                        "connections": ws_manager.get_connection_count()
+                    }
+                }
+
+                await ws_manager.broadcast_metrics(metrics)
+
+            await asyncio.sleep(2)  # Broadcast every 2 seconds
+
+        except Exception as e:
+            logger.error(f"Error in periodic broadcast: {e}")
+            await asyncio.sleep(5)  # Wait longer on error
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
@@ -76,6 +142,10 @@ async def lifespan(app: FastAPI):
     # Initialize WebSocket manager
     ws_manager = WebSocketManager()
 
+    # Start background task for periodic WebSocket broadcasts
+    broadcast_task = asyncio.create_task(broadcast_periodic_updates())
+    logger.info("Started periodic WebSocket broadcast task")
+
     # Initialize cluster coordinator if enabled
     cluster_cfg = getattr(cfg, 'cluster', None)
     if cluster_cfg and getattr(cluster_cfg, 'enabled', False):
@@ -98,6 +168,13 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down Oxide Web Backend")
+
+    # Stop broadcast task
+    broadcast_task.cancel()
+    try:
+        await broadcast_task
+    except asyncio.CancelledError:
+        logger.info("Periodic broadcast task stopped")
 
     # Stop hot reload manager
     hot_reload_mgr = get_hot_reload_manager()
