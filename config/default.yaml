@@ -71,7 +71,7 @@ services:
     default_model: null           # Will auto-detect via /v1/models
     auto_start: false             # LM Studio must be started manually
     auto_detect_model: true       # CRITICAL: Auto-detect model (LM Studio doesn't persist model names)
-    max_retries: 2
+    max_retries: 20
     retry_delay: 2
     # Preferred models to look for (in priority order)
     preferred_models:

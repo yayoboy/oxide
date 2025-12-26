@@ -8,6 +8,7 @@ import TaskHistory from './components/TaskHistory';
 import TaskExecutor from './components/TaskExecutor';
 import TaskAssignmentManager from './components/TaskAssignmentManager';
 import SystemMonitor from './components/SystemMonitor';
+import ConfigurationPanel from './components/ConfigurationPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/Tabs';
 import { useServices } from './hooks/useServices';
 import { useMetrics } from './hooks/useMetrics';
@@ -120,6 +121,9 @@ function App() {
             <TabsTrigger value="monitor" icon="💻">
               System Monitor
             </TabsTrigger>
+            <TabsTrigger value="config" icon="⚙️">
+              Configuration
+            </TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab - Compact unified view */}
@@ -157,6 +161,11 @@ function App() {
           {/* System Monitor Tab */}
           <TabsContent value="monitor">
             <SystemMonitor />
+          </TabsContent>
+
+          {/* Configuration Tab */}
+          <TabsContent value="config">
+            <ConfigurationPanel />
           </TabsContent>
         </Tabs>
 

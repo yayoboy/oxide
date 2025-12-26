@@ -15,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 
 from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
+from ...config.hot_reload import init_hot_reload, get_hot_reload_manager
 from ...utils.logging import logger, setup_logging
 from ...cluster import init_cluster_coordinator, get_cluster_coordinator
-from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs
+from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs, config
 from .websocket import WebSocketManager
 
 
@@ -33,30 +34,58 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting Oxide Web Backend")
 
+    # Initialize hot reload manager
+    from pathlib import Path
+    config_path = Path(__file__).parent.parent.parent.parent.parent / "config" / "default.yaml"
+    hot_reload_manager = init_hot_reload(
+        config_path=config_path,
+        auto_reload=True  # Enable auto-reload by default
+    )
+    hot_reload_manager.start()
+
     # Load configuration
-    config = load_config()
+    cfg = hot_reload_manager.current_config
     setup_logging(
-        level=config.logging.level,
-        log_file=config.logging.file,
-        console=config.logging.console
+        level=cfg.logging.level,
+        log_file=cfg.logging.file,
+        console=cfg.logging.console
     )
 
     # Initialize orchestrator
-    orchestrator = Orchestrator(config)
+    orchestrator = Orchestrator(cfg)
+
+    # Add hot reload callback to update orchestrator on config change
+    def on_config_reload(event):
+        """Handle configuration reload."""
+        global orchestrator
+
+        logger.info("Configuration reloaded, updating orchestrator...")
+
+        try:
+            # Re-initialize orchestrator with new config
+            # Note: This is a simplified reload. Full reload would require
+            # stopping old adapters and starting new ones.
+            orchestrator = Orchestrator(event.new_config)
+            logger.info("✅ Orchestrator updated with new configuration")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update orchestrator: {e}")
+
+    hot_reload_manager.add_reload_callback(on_config_reload)
 
     # Initialize WebSocket manager
     ws_manager = WebSocketManager()
 
     # Initialize cluster coordinator if enabled
-    cluster_config = getattr(config, 'cluster', None)
-    if cluster_config and getattr(cluster_config, 'enabled', False):
+    cluster_cfg = getattr(cfg, 'cluster', None)
+    if cluster_cfg and getattr(cluster_cfg, 'enabled', False):
         import socket
-        node_id = f"{socket.gethostname()}_{config.cluster.api_port}"
+        node_id = f"{socket.gethostname()}_{cfg.cluster.api_port}"
 
         coordinator = init_cluster_coordinator(
             node_id=node_id,
-            broadcast_port=config.cluster.broadcast_port,
-            api_port=config.cluster.api_port
+            broadcast_port=cfg.cluster.broadcast_port,
+            api_port=cfg.cluster.api_port
         )
         await coordinator.start(orchestrator)
         logger.info("Cluster coordinator started")
@@ -69,6 +98,12 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down Oxide Web Backend")
+
+    # Stop hot reload manager
+    hot_reload_mgr = get_hot_reload_manager()
+    if hot_reload_mgr:
+        hot_reload_mgr.stop()
+        logger.info("Hot reload manager stopped")
 
     # Stop cluster coordinator
     coordinator = get_cluster_coordinator()
@@ -104,6 +139,7 @@ app.include_router(machines.router, prefix="/api/machines", tags=["machines"])
 app.include_router(memory.router)  # Memory router already has prefix="/api/memory"
 app.include_router(cluster.router)  # Cluster router already has prefix="/api/cluster"
 app.include_router(costs.router)  # Costs router already has prefix="/api/costs"
+app.include_router(config.router)  # Config router with prefix="/api/config"
 
 
 # Serve static files from the frontend build
