@@ -4,6 +4,8 @@ Core orchestration system for Oxide.
 Coordinates task classification, routing, and execution across LLM services.
 """
 from typing import AsyncIterator, List, Optional, Dict, Any
+import time
+import hashlib
 
 from ..adapters.base import BaseAdapter
 from ..adapters.gemini import GeminiAdapter
@@ -17,6 +19,7 @@ from ..utils.exceptions import (
     ExecutionError
 )
 from ..utils.logging import logger, setup_logging
+from ..memory.context_memory import get_context_memory
 from .classifier import TaskClassifier, TaskInfo
 from .router import TaskRouter, RouterDecision
 
@@ -51,6 +54,10 @@ class Orchestrator:
         # Initialize components
         self.classifier = TaskClassifier()
         self.router = TaskRouter(self.config, service_health_checker=self._check_service_health)
+
+        # Initialize context memory
+        self.memory = get_context_memory()
+        self.logger.info("Context memory initialized")
 
         # Initialize adapters registry
         self.adapters: Dict[str, BaseAdapter] = {}
@@ -121,6 +128,8 @@ class Orchestrator:
                 - preferred_service: Force specific service (e.g., "ollama_remote")
                 - task_type: Override task classification (e.g., "code_generation")
                 - timeout: Override timeout in seconds
+                - conversation_id: Optional conversation ID for context continuity
+                - use_memory: Enable/disable memory (default: True)
 
         Yields:
             Response chunks as they become available
@@ -132,13 +141,40 @@ class Orchestrator:
         self.logger.info(f"Executing task with {len(files) if files else 0} files")
         preferences = preferences or {}
 
+        # Generate conversation ID for memory tracking
+        conversation_id = preferences.get("conversation_id") or self._generate_conversation_id(prompt)
+        use_memory = preferences.get("use_memory", True)
+
         try:
+            # Store user prompt in memory
+            if use_memory:
+                self.memory.add_context(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=prompt,
+                    metadata={
+                        "files": files,
+                        "preferences": {k: v for k, v in preferences.items() if k not in ["conversation_id", "use_memory"]}
+                    }
+                )
+
             # Check for preference overrides
             preferred_service = preferences.get("preferred_service")
             timeout_override = preferences.get("timeout")
 
             # 1. Classify task (always needed for TaskInfo)
             task_info = self.classifier.classify(prompt, files)
+
+            # Retrieve relevant context from memory
+            if use_memory:
+                relevant_context = self.memory.get_context_for_task(
+                    task_type=task_info.task_type.value,
+                    prompt=prompt,
+                    max_messages=5,
+                    max_age_hours=24
+                )
+                if relevant_context:
+                    self.logger.debug(f"Retrieved {len(relevant_context)} relevant context messages")
 
             if preferred_service:
                 # Direct routing to preferred service
@@ -172,14 +208,30 @@ class Orchestrator:
                 if timeout_override:
                     decision.timeout_seconds = timeout_override
 
-            # 3. Execute with retries
+            # 3. Execute with retries and collect response
+            response_chunks = []
             async for chunk in self._execute_with_retry(
                 decision,
                 prompt,
                 files,
                 task_info
             ):
+                response_chunks.append(chunk)
                 yield chunk
+
+            # Store assistant response in memory
+            if use_memory:
+                response = "".join(response_chunks)
+                self.memory.add_context(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=response,
+                    metadata={
+                        "service": decision.primary_service,
+                        "task_type": task_info.task_type.value,
+                        "execution_time": time.time()
+                    }
+                )
 
             self.logger.info(f"Task completed successfully on {decision.primary_service}")
 
@@ -190,6 +242,22 @@ class Orchestrator:
         except Exception as e:
             self.logger.error(f"Task execution failed: {e}")
             raise ExecutionError(f"Failed to execute task: {e}")
+
+    def _generate_conversation_id(self, prompt: str) -> str:
+        """
+        Generate a unique conversation ID based on prompt and timestamp.
+
+        Args:
+            prompt: Task prompt
+
+        Returns:
+            Conversation ID string
+        """
+        # Create hash from prompt + timestamp (truncated to hour for grouping similar tasks)
+        timestamp_hour = int(time.time() / 3600) * 3600
+        hash_input = f"{prompt[:100]}_{timestamp_hour}".encode()
+        conv_hash = hashlib.md5(hash_input).hexdigest()[:12]
+        return f"conv_{conv_hash}"
 
     async def _execute_with_retry(
         self,

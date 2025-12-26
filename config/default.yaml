@@ -158,3 +158,13 @@ logging:
   level: INFO
   file: /tmp/oxide.log
   console: true
+
+# Context Memory Configuration
+memory:
+  enabled: true
+  storage_path: ~/.oxide/memory.json
+  max_conversations: 1000          # Maximum number of conversations to store
+  max_age_days: 30                 # Auto-prune conversations older than this
+  max_messages_per_conversation: 100  # Limit messages per conversation
+  auto_prune_enabled: true         # Enable automatic pruning
+  similarity_threshold: 0.5        # Minimum similarity for context retrieval
