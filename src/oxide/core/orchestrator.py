@@ -23,6 +23,7 @@ from ..memory.context_memory import get_context_memory
 from ..analytics import get_cost_tracker
 from .classifier import TaskClassifier, TaskInfo
 from .router import TaskRouter, RouterDecision
+from ..execution.parallel import ParallelExecutor
 
 
 class Orchestrator:
@@ -55,6 +56,11 @@ class Orchestrator:
         # Initialize components
         self.classifier = TaskClassifier()
         self.router = TaskRouter(self.config, service_health_checker=self._check_service_health)
+
+        # Initialize parallel executor
+        max_workers = getattr(self.config.execution, "max_parallel_workers", 3)
+        self.parallel_executor = ParallelExecutor(max_workers=max_workers)
+        self.logger.info(f"Parallel executor initialized with {max_workers} workers")
 
         # Initialize context memory
         self.memory = get_context_memory()
@@ -213,16 +219,42 @@ class Orchestrator:
                 if timeout_override:
                     decision.timeout_seconds = timeout_override
 
-            # 3. Execute with retries and collect response
+            # 3. Execute based on execution mode
             response_chunks = []
-            async for chunk in self._execute_with_retry(
-                decision,
-                prompt,
-                files,
-                task_info
-            ):
-                response_chunks.append(chunk)
-                yield chunk
+
+            if decision.execution_mode == "parallel" and files and len(files) > 1:
+                # Use parallel execution for large file sets
+                self.logger.info(
+                    f"Using parallel execution: {len(files)} files across "
+                    f"{len([decision.primary_service] + decision.fallback_services)} services"
+                )
+
+                # Get available services (primary + fallbacks)
+                services = [decision.primary_service] + decision.fallback_services
+
+                # Execute in parallel
+                parallel_result = await self.parallel_executor.execute_parallel(
+                    prompt=prompt,
+                    files=files,
+                    services=services,
+                    adapters=self.adapters,
+                    strategy="split"  # Split files among services
+                )
+
+                # Yield the aggregated result
+                yield parallel_result.aggregated_text
+                response_chunks.append(parallel_result.aggregated_text)
+
+            else:
+                # Use standard serial execution with retries
+                async for chunk in self._execute_with_retry(
+                    decision,
+                    prompt,
+                    files,
+                    task_info
+                ):
+                    response_chunks.append(chunk)
+                    yield chunk
 
             # Store assistant response in memory and track cost
             response = "".join(response_chunks)

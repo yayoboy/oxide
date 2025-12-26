@@ -350,17 +350,24 @@ def mock_orchestrator(mock_config, mock_base_adapter):
 
 
 @pytest.fixture
-def api_client(mock_orchestrator, temp_task_storage):
+def api_client(mock_orchestrator, temp_task_storage, mock_websocket_manager):
     """Provide FastAPI TestClient with mocked dependencies."""
     from oxide.web.backend.main import app, set_orchestrator
+    import oxide.web.backend.main as main_module
 
     # Inject mocked orchestrator
     set_orchestrator(mock_orchestrator)
 
+    # Inject mocked WebSocket manager
+    main_module.ws_manager = mock_websocket_manager
+
     # Create test client
     client = TestClient(app)
 
-    return client
+    yield client
+
+    # Cleanup
+    main_module.ws_manager = None
 
 
 # Memory and Analytics Fixtures

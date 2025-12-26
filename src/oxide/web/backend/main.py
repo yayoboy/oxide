@@ -227,6 +227,12 @@ def get_orchestrator() -> Orchestrator:
     return orchestrator
 
 
+def set_orchestrator(orch: Orchestrator) -> None:
+    """Set the global orchestrator instance (for testing)."""
+    global orchestrator
+    orchestrator = orch
+
+
 def get_ws_manager() -> WebSocketManager:
     """Get the global WebSocket manager instance."""
     if ws_manager is None:
