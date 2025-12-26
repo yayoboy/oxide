@@ -41,6 +41,12 @@ export const monitoringAPI = {
   healthCheck: () => client.get('/monitoring/health'),
 };
 
+// Machines API
+export const machinesAPI = {
+  list: () => client.get('/machines'),
+  get: (machineId) => client.get(`/machines/${machineId}`),
+};
+
 // WebSocket connection
 export const createWebSocket = (onMessage, onError) => {
   const ws = new WebSocket('ws://localhost:8000/ws');

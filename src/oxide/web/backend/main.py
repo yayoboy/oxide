@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
 from ...utils.logging import logger, setup_logging
-from .routes import services, tasks, monitoring, routing
+from .routes import services, tasks, monitoring, routing, machines
 from .websocket import WebSocketManager
 
 
@@ -77,6 +77,7 @@ app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
 app.include_router(routing.router, prefix="/api/routing", tags=["routing"])
+app.include_router(machines.router, prefix="/api/machines", tags=["machines"])
 
 
 # Serve static files from the frontend build

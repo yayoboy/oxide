@@ -5,6 +5,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useServices } from '../hooks/useServices';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
+import { FormField, Select } from './ui/Input';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/Table';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -14,15 +19,12 @@ const TaskAssignmentManager = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-
-  // Form state
   const [selectedTaskType, setSelectedTaskType] = useState('');
   const [selectedService, setSelectedService] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
   const { services } = useServices();
 
-  // Fetch routing rules and task types
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -61,11 +63,7 @@ const TaskAssignmentManager = () => {
       setSuccess(`Rule added: ${selectedTaskType} → ${selectedService}`);
       setSelectedTaskType('');
       setSelectedService('');
-
-      // Refresh rules
       await fetchData();
-
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
@@ -80,10 +78,7 @@ const TaskAssignmentManager = () => {
     try {
       await axios.delete(`${API_BASE}/routing/rules/${taskType}`);
       setSuccess(`Rule deleted: ${taskType}`);
-
-      // Refresh rules
       await fetchData();
-
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
@@ -96,120 +91,79 @@ const TaskAssignmentManager = () => {
     try {
       await axios.post(`${API_BASE}/routing/rules/clear`);
       setSuccess('All routing rules cleared');
-
-      // Refresh rules
       await fetchData();
-
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
     }
   };
 
-  // Get healthy services for dropdown
   const healthyServices = services?.services
     ? Object.entries(services.services)
         .filter(([_, service]) => service.healthy)
         .map(([name]) => name)
     : [];
 
-  // Get task type info
   const getTaskTypeInfo = (taskTypeName) => {
     return taskTypes.find(t => t.name === taskTypeName);
   };
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3 className="card-title">⚙️ Task Assignment Rules</h3>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            onClick={fetchData}
-            className="btn btn-secondary"
-            style={{ fontSize: '0.85rem' }}
-          >
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <span className="text-2xl">⚙️</span>
+          Task Assignment Rules
+        </CardTitle>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={fetchData}>
             🔄 Refresh
-          </button>
+          </Button>
           {rules.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="btn btn-secondary"
-              style={{ fontSize: '0.85rem' }}
-            >
+            <Button variant="ghost" size="sm" onClick={handleClearAll}>
               🗑️ Clear All
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </CardHeader>
 
-      <div style={{ padding: '20px' }}>
+      <CardContent className="space-y-6">
         {/* Description */}
-        <p style={{ color: '#8b949e', marginBottom: '20px', fontSize: '0.9rem' }}>
+        <p className="text-sm text-gh-fg-muted">
           Configure which LLM service handles specific task types. When a task matches a rule, it will always be routed to the assigned service.
         </p>
 
         {/* Success/Error Messages */}
         {success && (
-          <div
-            style={{
-              marginBottom: '16px',
-              padding: '12px',
-              background: '#1e3d1e',
-              border: '1px solid #3fb950',
-              borderRadius: '6px',
-              color: '#3fb950',
-            }}
-          >
-            ✓ {success}
+          <div className="p-4 bg-gh-success/10 border border-gh-success rounded-md animate-slide-up">
+            <span className="text-gh-success font-medium">✓ {success}</span>
           </div>
         )}
 
         {error && (
-          <div
-            style={{
-              marginBottom: '16px',
-              padding: '12px',
-              background: '#3d1e1e',
-              border: '1px solid #f85149',
-              borderRadius: '6px',
-              color: '#f85149',
-            }}
-          >
-            ✗ {error}
+          <div className="p-4 bg-gh-danger/10 border border-gh-danger rounded-md animate-slide-up">
+            <span className="text-gh-danger font-medium">✗ {error}</span>
           </div>
         )}
 
         {/* Add New Rule Form */}
-        <div
-          style={{
-            marginBottom: '24px',
-            padding: '16px',
-            background: '#0d1117',
-            border: '1px solid #30363d',
-            borderRadius: '6px',
-          }}
-        >
-          <h4 style={{ marginBottom: '16px', fontSize: '1rem' }}>Add New Rule</h4>
+        <div className="p-4 bg-gh-canvas border border-gh-border rounded-lg space-y-4">
+          <h4 className="text-base font-semibold text-gh-fg-DEFAULT">Add New Rule</h4>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Task Type Selection */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#c9d1d9' }}>
-                Task Type
-              </label>
-              <select
+            <FormField
+              label="Task Type"
+              description={
+                selectedTaskType
+                  ? getTaskTypeInfo(selectedTaskType)?.description
+                  : 'Select a task type'
+              }
+            >
+              <Select
                 value={selectedTaskType}
                 onChange={(e) => setSelectedTaskType(e.target.value)}
                 disabled={isAdding || loading}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: '#161b22',
-                  border: '1px solid #30363d',
-                  borderRadius: '6px',
-                  color: '#c9d1d9',
-                  fontSize: '0.95rem',
-                }}
               >
                 <option value="">Select task type...</option>
                 {taskTypes.map((type) => (
@@ -217,32 +171,15 @@ const TaskAssignmentManager = () => {
                     {type.label}
                   </option>
                 ))}
-              </select>
-              {selectedTaskType && (
-                <div style={{ fontSize: '0.8rem', color: '#8b949e', marginTop: '4px' }}>
-                  {getTaskTypeInfo(selectedTaskType)?.description}
-                </div>
-              )}
-            </div>
+              </Select>
+            </FormField>
 
             {/* Service Selection */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#c9d1d9' }}>
-                Assign to Service
-              </label>
-              <select
+            <FormField label="Assign to Service" description="Select the LLM service">
+              <Select
                 value={selectedService}
                 onChange={(e) => setSelectedService(e.target.value)}
                 disabled={isAdding || loading}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: '#161b22',
-                  border: '1px solid #30363d',
-                  borderRadius: '6px',
-                  color: '#c9d1d9',
-                  fontSize: '0.95rem',
-                }}
               >
                 <option value="">Select service...</option>
                 {healthyServices.map((service) => (
@@ -250,108 +187,90 @@ const TaskAssignmentManager = () => {
                     {service}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
             {/* Add Button */}
-            <button
-              onClick={handleAddRule}
-              disabled={isAdding || !selectedTaskType || !selectedService}
-              className="btn btn-primary"
-              style={{ padding: '10px 20px' }}
-            >
-              {isAdding ? '⏳ Adding...' : '➕ Add Rule'}
-            </button>
+            <div className="flex items-end">
+              <Button
+                onClick={handleAddRule}
+                disabled={isAdding || !selectedTaskType || !selectedService}
+                variant="primary"
+                className="w-full"
+              >
+                {isAdding ? '⏳ Adding...' : '➕ Add Rule'}
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Existing Rules Table */}
-        <div>
-          <h4 style={{ marginBottom: '16px', fontSize: '1rem' }}>
+        <div className="space-y-4">
+          <h4 className="text-base font-semibold text-gh-fg-DEFAULT">
             Active Rules ({rules.length})
           </h4>
 
           {loading ? (
-            <div className="loading">Loading rules...</div>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gh-fg-muted animate-pulse">Loading rules...</div>
+            </div>
           ) : rules.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
-              <div>No routing rules configured</div>
-              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginTop: '8px' }}>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="text-6xl mb-4 opacity-20">📋</div>
+              <div className="text-gh-fg-muted">No routing rules configured</div>
+              <div className="text-sm text-gh-fg-subtle mt-2">
                 Add rules above to assign task types to specific services
               </div>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #30363d' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '0.9rem', color: '#8b949e' }}>
-                      Task Type
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '0.9rem', color: '#8b949e' }}>
-                      Assigned Service
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '0.9rem', color: '#8b949e' }}>
-                      Description
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '0.9rem', color: '#8b949e' }}>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map((rule) => {
-                    const typeInfo = getTaskTypeInfo(rule.task_type);
-                    return (
-                      <tr
-                        key={rule.task_type}
-                        style={{ borderBottom: '1px solid #21262d' }}
-                      >
-                        <td style={{ padding: '12px' }}>
-                          <div style={{ fontWeight: '500', color: '#c9d1d9' }}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task Type</TableHead>
+                  <TableHead>Assigned Service</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules.map((rule) => {
+                  const typeInfo = getTaskTypeInfo(rule.task_type);
+                  return (
+                    <TableRow key={rule.task_type}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium text-gh-fg-DEFAULT">
                             {typeInfo?.label || rule.task_type}
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: '#8b949e' }}>
+                          <div className="text-xs text-gh-fg-subtle font-mono">
                             {rule.task_type}
                           </div>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <span
-                            style={{
-                              padding: '4px 12px',
-                              background: '#1f6feb',
-                              color: 'white',
-                              borderRadius: '12px',
-                              fontSize: '0.85rem',
-                              fontWeight: '500',
-                            }}
-                          >
-                            {rule.service}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '0.85rem', color: '#8b949e' }}>
-                          {typeInfo?.description || '-'}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right' }}>
-                          <button
-                            onClick={() => handleDeleteRule(rule.task_type)}
-                            className="btn btn-secondary"
-                            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-                          >
-                            🗑️ Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="info">{rule.service}</Badge>
+                      </TableCell>
+                      <TableCell className="text-gh-fg-subtle">
+                        {typeInfo?.description || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          onClick={() => handleDeleteRule(rule.task_type)}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          🗑️ Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

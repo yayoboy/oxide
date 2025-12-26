@@ -1,9 +1,13 @@
 /**
  * Task History Component
- * Displays recent task execution history
+ * Displays recent task execution history with modern UI
  */
 import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../api/client';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
+import { formatDuration, formatTimestamp } from '../lib/utils';
 
 const TaskHistory = () => {
   const [tasks, setTasks] = useState([]);
@@ -24,130 +28,145 @@ const TaskHistory = () => {
 
   useEffect(() => {
     fetchTasks();
-
-    // Refresh every 3 seconds
     const interval = setInterval(fetchTasks, 3000);
     return () => clearInterval(interval);
   }, []);
 
   const getStatusBadge = (status) => {
     const statusMap = {
-      completed: { class: 'badge-success', label: 'Completed' },
-      running: { class: 'badge-warning', label: 'Running' },
-      failed: { class: 'badge-error', label: 'Failed' },
-      queued: { class: 'badge-info', label: 'Queued' },
+      completed: 'success',
+      running: 'warning',
+      failed: 'error',
+      queued: 'info',
     };
-
-    const config = statusMap[status] || { class: 'badge-info', label: status };
-    return <span className={`badge ${config.class}`}>{config.label}</span>;
-  };
-
-  const formatDuration = (duration) => {
-    if (!duration) return 'N/A';
-    if (duration < 1) return `${(duration * 1000).toFixed(0)}ms`;
-    return `${duration.toFixed(2)}s`;
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleTimeString();
+    return statusMap[status] || 'default';
   };
 
   if (loading) {
     return (
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">📝 Recent Tasks</h3>
-        </div>
-        <div className="loading">Loading tasks...</div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <span className="text-2xl">📝</span>
+            Recent Tasks
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-gh-fg-muted animate-pulse">Loading tasks...</div>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">📝 Recent Tasks</h3>
-        </div>
-        <div className="error">Error loading tasks: {error}</div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <span className="text-2xl">📝</span>
+            Recent Tasks
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-gh-danger/10 border border-gh-danger rounded-md text-gh-danger">
+            Error loading tasks: {error}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3 className="card-title">📝 Recent Tasks</h3>
-        <button className="btn btn-secondary" onClick={fetchTasks}>
-          Refresh
-        </button>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <span className="text-2xl">📝</span>
+          Recent Tasks
+        </CardTitle>
+        <Button variant="secondary" size="sm" onClick={fetchTasks}>
+          🔄 Refresh
+        </Button>
+      </CardHeader>
 
-      {tasks.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📭</div>
-          <div>No tasks yet</div>
-        </div>
-      ) : (
-        <div>
-          {tasks.map((task) => (
-            <div key={task.id} className="task-item">
-              <div className="task-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {getStatusBadge(task.status)}
-                  <span className="task-meta">
-                    {formatTimestamp(task.created_at)}
-                  </span>
+      <CardContent>
+        {tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="text-6xl mb-4 opacity-20">📭</div>
+            <div className="text-gh-fg-muted">No tasks yet</div>
+            <div className="text-sm text-gh-fg-subtle mt-2">
+              Execute a task to see it appear here
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className="p-4 bg-gh-canvas rounded-lg border border-gh-border hover:border-gh-accent-primary/50 transition-all duration-200 animate-slide-up"
+              >
+                {/* Task Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Badge variant={getStatusBadge(task.status)}>
+                      {task.status}
+                    </Badge>
+                    <span className="text-xs text-gh-fg-muted">
+                      {formatTimestamp(task.created_at)}
+                    </span>
+                  </div>
+                  {task.duration && (
+                    <div className="flex items-center gap-1 text-xs text-gh-fg-subtle">
+                      <span>⏱️</span>
+                      <span>{formatDuration(task.duration)}</span>
+                    </div>
+                  )}
                 </div>
-                {task.duration && (
-                  <span className="task-meta">
-                    ⏱️ {formatDuration(task.duration)}
-                  </span>
+
+                {/* Task Prompt */}
+                <div className="text-sm text-gh-fg-DEFAULT mb-3">
+                  {task.prompt?.substring(0, 150) || 'No prompt'}
+                  {task.prompt?.length > 150 && (
+                    <span className="text-gh-fg-subtle">...</span>
+                  )}
+                </div>
+
+                {/* Task Files */}
+                {task.files && task.files.length > 0 && (
+                  <div className="text-xs text-gh-fg-subtle mb-2">
+                    📁 {task.files.length} file(s)
+                  </div>
+                )}
+
+                {/* Task Error */}
+                {task.error && (
+                  <div className="mt-3 p-3 bg-gh-danger/10 border border-gh-danger rounded-md text-sm text-gh-danger">
+                    <div className="font-semibold mb-1">Error:</div>
+                    <div className="text-xs">{task.error}</div>
+                  </div>
+                )}
+
+                {/* Task Result */}
+                {task.status === 'completed' && task.result && (
+                  <div className="mt-3 p-3 bg-gh-canvas-subtle border border-gh-border rounded-md">
+                    <div className="text-xs text-gh-fg-muted mb-2">Result:</div>
+                    <div className="text-xs text-gh-fg-subtle font-mono overflow-hidden text-ellipsis">
+                      {task.result.substring(0, 200)}
+                      {task.result.length > 200 && (
+                        <span className="text-gh-accent-primary cursor-pointer hover:underline ml-2">
+                          Show more
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-
-              <div className="task-prompt">
-                {task.prompt?.substring(0, 150) || 'No prompt'}
-                {task.prompt?.length > 150 && '...'}
-              </div>
-
-              {task.files && task.files.length > 0 && (
-                <div className="task-meta" style={{ marginTop: '8px' }}>
-                  📁 {task.files.length} file(s)
-                </div>
-              )}
-
-              {task.error && (
-                <div className="error" style={{ marginTop: '10px', fontSize: '0.85rem' }}>
-                  {task.error}
-                </div>
-              )}
-
-              {task.status === 'completed' && task.result && (
-                <div
-                  style={{
-                    marginTop: '10px',
-                    padding: '10px',
-                    background: '#0d1117',
-                    border: '1px solid #30363d',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    color: '#8b949e',
-                    maxHeight: '100px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {task.result.substring(0, 200)}
-                  {task.result.length > 200 && '...'}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
