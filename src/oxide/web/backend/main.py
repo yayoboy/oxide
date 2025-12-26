@@ -17,7 +17,7 @@ from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
 from ...utils.logging import logger, setup_logging
 from ...cluster import init_cluster_coordinator, get_cluster_coordinator
-from .routes import services, tasks, monitoring, routing, machines, memory, cluster
+from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs
 from .websocket import WebSocketManager
 
 
@@ -103,6 +103,7 @@ app.include_router(routing.router, prefix="/api/routing", tags=["routing"])
 app.include_router(machines.router, prefix="/api/machines", tags=["machines"])
 app.include_router(memory.router)  # Memory router already has prefix="/api/memory"
 app.include_router(cluster.router)  # Cluster router already has prefix="/api/cluster"
+app.include_router(costs.router)  # Costs router already has prefix="/api/costs"
 
 
 # Serve static files from the frontend build

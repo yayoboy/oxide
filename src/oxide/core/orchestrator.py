@@ -20,6 +20,7 @@ from ..utils.exceptions import (
 )
 from ..utils.logging import logger, setup_logging
 from ..memory.context_memory import get_context_memory
+from ..analytics import get_cost_tracker
 from .classifier import TaskClassifier, TaskInfo
 from .router import TaskRouter, RouterDecision
 
@@ -58,6 +59,10 @@ class Orchestrator:
         # Initialize context memory
         self.memory = get_context_memory()
         self.logger.info("Context memory initialized")
+
+        # Initialize cost tracker
+        self.cost_tracker = get_cost_tracker()
+        self.logger.info("Cost tracker initialized")
 
         # Initialize adapters registry
         self.adapters: Dict[str, BaseAdapter] = {}
@@ -219,9 +224,10 @@ class Orchestrator:
                 response_chunks.append(chunk)
                 yield chunk
 
-            # Store assistant response in memory
+            # Store assistant response in memory and track cost
+            response = "".join(response_chunks)
+
             if use_memory:
-                response = "".join(response_chunks)
                 self.memory.add_context(
                     conversation_id=conversation_id,
                     role="assistant",
@@ -232,6 +238,17 @@ class Orchestrator:
                         "execution_time": time.time()
                     }
                 )
+
+            # Track cost (uses estimates for token counts)
+            try:
+                self.cost_tracker.record_cost(
+                    task_id=conversation_id,
+                    service=decision.primary_service,
+                    prompt=prompt,
+                    response=response
+                )
+            except Exception as e:
+                self.logger.warning(f"Failed to record cost: {e}")
 
             self.logger.info(f"Task completed successfully on {decision.primary_service}")
 
