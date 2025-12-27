@@ -19,6 +19,7 @@ from ..utils.exceptions import (
     ExecutionError
 )
 from ..utils.logging import logger, setup_logging
+from ..utils.task_storage import get_task_storage
 from ..memory.context_memory import get_context_memory
 from ..analytics import get_cost_tracker
 from .classifier import TaskClassifier, TaskInfo
@@ -61,6 +62,10 @@ class Orchestrator:
         max_workers = getattr(self.config.execution, "max_parallel_workers", 3)
         self.parallel_executor = ParallelExecutor(max_workers=max_workers)
         self.logger.info(f"Parallel executor initialized with {max_workers} workers")
+
+        # Initialize task storage
+        self.task_storage = get_task_storage()
+        self.logger.info("Task storage initialized")
 
         # Initialize context memory
         self.memory = get_context_memory()
@@ -156,7 +161,20 @@ class Orchestrator:
         conversation_id = preferences.get("conversation_id") or self._generate_conversation_id(prompt)
         use_memory = preferences.get("use_memory", True)
 
+        # Generate unique task ID
+        task_id = preferences.get("task_id") or f"task_{int(time.time() * 1000)}"
+
+        # Create initial task record in storage
+        self.task_storage.add_task(
+            task_id=task_id,
+            prompt=prompt,
+            files=files,
+            preferences=preferences
+        )
+
         try:
+            # Mark task as running
+            self.task_storage.update_task(task_id, status="running")
             # Store user prompt in memory
             if use_memory:
                 self.memory.add_context(
@@ -175,6 +193,12 @@ class Orchestrator:
 
             # 1. Classify task (always needed for TaskInfo)
             task_info = self.classifier.classify(prompt, files)
+
+            # Update task with classification
+            self.task_storage.update_task(
+                task_id,
+                task_type=task_info.task_type.value
+            )
 
             # Retrieve relevant context from memory and enhance prompt
             enhanced_prompt = prompt
@@ -211,6 +235,12 @@ class Orchestrator:
                     execution_mode="single",
                     timeout_seconds=timeout_override or self.config.execution.timeout_seconds
                 )
+
+                # Update task with preferred service
+                self.task_storage.update_task(
+                    task_id,
+                    service=preferred_service
+                )
             else:
                 # Allow task_type override
                 if "task_type" in preferences:
@@ -224,6 +254,12 @@ class Orchestrator:
                 # Apply timeout override if provided
                 if timeout_override:
                     decision.timeout_seconds = timeout_override
+
+                # Update task with routing decision
+                self.task_storage.update_task(
+                    task_id,
+                    service=decision.primary_service
+                )
 
             # 3. Execute based on execution mode
             response_chunks = []
@@ -288,14 +324,33 @@ class Orchestrator:
             except Exception as e:
                 self.logger.warning(f"Failed to record cost: {e}")
 
-            self.logger.info(f"Task completed successfully on {decision.primary_service}")
+            # Mark task as completed with result
+            self.task_storage.update_task(
+                task_id,
+                status="completed",
+                result=response[:500] + "..." if len(response) > 500 else response  # Store truncated result
+            )
+
+            self.logger.info(f"Task {task_id} completed successfully on {decision.primary_service}")
 
         except NoServiceAvailableError as e:
             self.logger.error(f"No service available: {e}")
+            # Mark task as failed
+            self.task_storage.update_task(
+                task_id,
+                status="failed",
+                error=str(e)
+            )
             raise
 
         except Exception as e:
             self.logger.error(f"Task execution failed: {e}")
+            # Mark task as failed
+            self.task_storage.update_task(
+                task_id,
+                status="failed",
+                error=str(e)
+            )
             raise ExecutionError(f"Failed to execute task: {e}")
 
     def _format_context_for_prompt(self, context_messages: List[Dict[str, Any]]) -> str:
