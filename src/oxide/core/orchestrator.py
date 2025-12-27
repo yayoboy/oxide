@@ -176,7 +176,8 @@ class Orchestrator:
             # 1. Classify task (always needed for TaskInfo)
             task_info = self.classifier.classify(prompt, files)
 
-            # Retrieve relevant context from memory
+            # Retrieve relevant context from memory and enhance prompt
+            enhanced_prompt = prompt
             if use_memory:
                 relevant_context = self.memory.get_context_for_task(
                     task_type=task_info.task_type.value,
@@ -186,6 +187,11 @@ class Orchestrator:
                 )
                 if relevant_context:
                     self.logger.debug(f"Retrieved {len(relevant_context)} relevant context messages")
+
+                    # Format context for injection into prompt
+                    context_str = self._format_context_for_prompt(relevant_context)
+                    enhanced_prompt = f"{context_str}\n\n{prompt}"
+                    self.logger.info(f"Enhanced prompt with {len(relevant_context)} context messages")
 
             if preferred_service:
                 # Direct routing to preferred service
@@ -234,7 +240,7 @@ class Orchestrator:
 
                 # Execute in parallel
                 parallel_result = await self.parallel_executor.execute_parallel(
-                    prompt=prompt,
+                    prompt=enhanced_prompt,
                     files=files,
                     services=services,
                     adapters=self.adapters,
@@ -249,7 +255,7 @@ class Orchestrator:
                 # Use standard serial execution with retries
                 async for chunk in self._execute_with_retry(
                     decision,
-                    prompt,
+                    enhanced_prompt,
                     files,
                     task_info
                 ):
@@ -291,6 +297,38 @@ class Orchestrator:
         except Exception as e:
             self.logger.error(f"Task execution failed: {e}")
             raise ExecutionError(f"Failed to execute task: {e}")
+
+    def _format_context_for_prompt(self, context_messages: List[Dict[str, Any]]) -> str:
+        """
+        Format context messages for injection into prompt.
+
+        Args:
+            context_messages: List of context messages from memory
+
+        Returns:
+            Formatted context string
+        """
+        if not context_messages:
+            return ""
+
+        context_parts = ["Previous relevant conversation history:"]
+
+        for msg in context_messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+
+            # Format role name
+            role_display = {
+                "user": "User",
+                "assistant": "Assistant",
+                "system": "System"
+            }.get(role, role.capitalize())
+
+            context_parts.append(f"\n{role_display}: {content}")
+
+        context_parts.append("\n---\nCurrent task:")
+
+        return "\n".join(context_parts)
 
     def _generate_conversation_id(self, prompt: str) -> str:
         """
