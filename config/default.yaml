@@ -43,7 +43,7 @@ services:
   lmstudio:
     type: http
     enabled: true
-    base_url: http://192.168.1.33:1234/v1
+    base_url: http://192.168.1.33:1234
     api_type: openai_compatible
 routing_rules:
   codebase_analysis:
