@@ -45,6 +45,29 @@ services:
     enabled: true
     base_url: http://192.168.1.33:1234
     api_type: openai_compatible
+  openrouter:
+    type: http
+    enabled: true
+    base_url: https://openrouter.ai/api/v1
+    api_type: openai_compatible
+    # API key: set via OPENROUTER_API_KEY environment variable or uncomment below
+    # api_key: your_openrouter_api_key_here
+    default_model: openrouter/auto  # Intelligent model routing
+    use_free_only: false  # Set to true to only use free models
+    fallback_models:
+      - google/gemini-flash-1.5
+      - meta-llama/llama-3.2-3b-instruct:free
+      - mistralai/mistral-7b-instruct:free
+    site_url: https://github.com/oxide-ai/oxide
+    site_name: Oxide LLM Orchestrator
+    max_retries: 2
+    retry_delay: 2
+    capabilities:
+      - code_generation
+      - code_review
+      - quick_query
+      - documentation
+      - general_purpose
 routing_rules:
   codebase_analysis:
     primary: gemini
@@ -69,7 +92,14 @@ routing_rules:
     fallback:
     - ollama_remote
     - lmstudio
+    - openrouter
     timeout_seconds: 10
+  general_purpose:
+    primary: openrouter
+    fallback:
+    - qwen
+    - ollama_local
+    timeout_seconds: 60
   architecture_design:
     primary: gemini
     fallback:

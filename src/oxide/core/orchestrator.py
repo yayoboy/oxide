@@ -11,6 +11,7 @@ from ..adapters.base import BaseAdapter
 from ..adapters.gemini import GeminiAdapter
 from ..adapters.qwen import QwenAdapter
 from ..adapters.ollama_http import OllamaHTTPAdapter
+from ..adapters.openrouter import OpenRouterAdapter
 from ..config.loader import Config, load_config
 from ..utils.exceptions import (
     BaseOxideError,
@@ -123,7 +124,11 @@ class Orchestrator:
                 raise ValueError(f"Unknown CLI service: {service_name}")
 
         elif service_type == "http":
-            return OllamaHTTPAdapter(service_name, config)
+            # Check if this is an OpenRouter service
+            if "openrouter" in service_name.lower():
+                return OpenRouterAdapter(service_name, config)
+            else:
+                return OllamaHTTPAdapter(service_name, config)
 
         else:
             raise ValueError(f"Unknown service type: {service_type}")

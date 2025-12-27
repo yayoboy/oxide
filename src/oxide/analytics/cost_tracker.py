@@ -77,6 +77,12 @@ class CostTracker:
             service="lmstudio",
             cost_per_input_token=0.0,  # Self-hosted - free
             cost_per_output_token=0.0
+        ),
+        "openrouter": ServicePricing(
+            service="openrouter",
+            # Average pricing (varies by model - actual cost tracked from API response)
+            cost_per_input_token=0.00000015,   # ~$0.15 per 1M tokens average
+            cost_per_output_token=0.00000045   # ~$0.45 per 1M tokens average
         )
     }
 

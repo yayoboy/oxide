@@ -35,11 +35,23 @@ class ServiceConfig(BaseModel):
     base_url: Optional[str] = None
     api_type: Optional[APIType] = None
     default_model: Optional[str] = None
+    api_key: Optional[str] = None  # For services requiring API keys (OpenRouter, etc.)
 
     # Common fields
     max_context_tokens: Optional[int] = None
     models: Optional[List[str]] = None
     capabilities: Optional[List[str]] = None
+
+    # Advanced HTTP adapter fields (OpenRouter, retry logic, etc.)
+    fallback_models: Optional[List[str]] = None
+    preferred_models: Optional[List[str]] = None
+    use_free_only: Optional[bool] = None
+    max_retries: Optional[int] = None
+    retry_delay: Optional[int] = None
+    site_url: Optional[str] = None
+    site_name: Optional[str] = None
+    auto_start: Optional[bool] = None
+    auto_detect_model: Optional[bool] = None
 
     @field_validator("executable")
     @classmethod
