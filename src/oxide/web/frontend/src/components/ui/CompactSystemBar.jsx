@@ -15,9 +15,9 @@ export const CompactSystemBar = ({ system }) => {
   };
 
   return (
-    <div className="glass rounded-lg px-4 py-2 flex items-center gap-6">
+    <div className="glass rounded-lg px-4 py-2 flex items-center gap-6" data-testid="system-bar">
       {/* CPU */}
-      <div className="flex items-center gap-2 min-w-[120px]">
+      <div className="flex items-center gap-2 min-w-[120px]" data-testid="cpu-bar">
         <span className="text-sm text-gh-fg-muted">CPU</span>
         <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
           <div
@@ -36,7 +36,7 @@ export const CompactSystemBar = ({ system }) => {
       </div>
 
       {/* Memory */}
-      <div className="flex items-center gap-2 min-w-[120px]">
+      <div className="flex items-center gap-2 min-w-[120px]" data-testid="memory-bar">
         <span className="text-sm text-gh-fg-muted">RAM</span>
         <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
           <div

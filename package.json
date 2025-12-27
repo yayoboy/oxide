@@ -1,0 +1,27 @@
+{
+  "name": "oxide",
+  "version": "1.0.0",
+  "description": "Oxide LLM Orchestrator - Multi-service LLM routing and execution",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:smoke": "playwright test smoke.spec.js",
+    "test:e2e:visual": "playwright test visual-regression.spec.js",
+    "screenshots:generate": "playwright test generate-screenshots.spec.js",
+    "screenshots:update": "playwright test --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  },
+  "keywords": [
+    "llm",
+    "orchestrator",
+    "ai",
+    "multi-service"
+  ],
+  "author": "",
+  "license": "MIT"
+}

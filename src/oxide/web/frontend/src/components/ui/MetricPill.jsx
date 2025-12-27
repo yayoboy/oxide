@@ -14,12 +14,18 @@ export const MetricPill = ({ icon, label, value, status = 'neutral', className }
     neutral: 'bg-white/10 border-white/20 text-white'
   };
 
+  // Generate test ID from label
+  const testId = `metric-pill-${label.toLowerCase().replace(/\s+/g, '-')}`;
+
   return (
-    <div className={cn(
-      "rounded-full px-3 py-1.5 border flex items-center gap-2 transition-all hover:scale-105",
-      statusColors[status],
-      className
-    )}>
+    <div
+      className={cn(
+        "rounded-full px-3 py-1.5 border flex items-center gap-2 transition-all hover:scale-105",
+        statusColors[status],
+        className
+      )}
+      data-testid={testId}
+    >
       {icon && <span className="text-sm">{icon}</span>}
       <span className="text-xs text-gh-fg-muted whitespace-nowrap">{label}:</span>
       <span className="text-sm font-bold whitespace-nowrap">{value}</span>
