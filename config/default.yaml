@@ -114,3 +114,7 @@ security:
     - /workspace  # Docker mount point
   # Enable/disable path validation (disable only for testing!)
   path_validation_enabled: true
+storage:
+  # Storage backend: 'sqlite' (recommended) or 'json' (legacy)
+  # SQLite provides 10-100x better performance and concurrent access
+  backend: sqlite  # Use 'json' to revert to legacy storage

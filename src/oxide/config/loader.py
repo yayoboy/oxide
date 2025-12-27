@@ -96,6 +96,11 @@ class SecurityConfig(BaseModel):
     path_validation_enabled: bool = True
 
 
+class StorageConfig(BaseModel):
+    """Storage backend configuration."""
+    backend: str = "sqlite"  # 'sqlite' or 'json'
+
+
 class Config(BaseModel):
     """Main configuration object."""
     services: Dict[str, ServiceConfig]
@@ -103,6 +108,7 @@ class Config(BaseModel):
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
 
     @field_validator("services")
     @classmethod
