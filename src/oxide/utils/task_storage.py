@@ -277,9 +277,31 @@ class TaskStorage:
 _task_storage: Optional[TaskStorage] = None
 
 
-def get_task_storage() -> TaskStorage:
-    """Get the global TaskStorage instance."""
+def get_task_storage():
+    """
+    Get the global TaskStorage instance.
+
+    Returns either TaskStorage (JSON) or TaskStorageSQLite based on configuration.
+    The storage backend is determined by config.storage.backend setting.
+    """
     global _task_storage
+
     if _task_storage is None:
-        _task_storage = TaskStorage()
+        # Import here to avoid circular dependency
+        try:
+            from ..config.loader import load_config
+            config = load_config()
+            backend = config.storage.backend
+        except Exception as e:
+            logger.warning(f"Failed to load config, defaulting to JSON storage: {e}")
+            backend = "json"
+
+        if backend == "sqlite":
+            from .task_storage_sqlite import TaskStorageSQLite
+            _task_storage = TaskStorageSQLite()
+            logger.info("Using SQLite storage backend")
+        else:
+            _task_storage = TaskStorage()
+            logger.info("Using JSON storage backend")
+
     return _task_storage
