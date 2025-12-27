@@ -1,26 +1,33 @@
 /**
- * Badge Component
- * Glassmorphism badges with neon effects
+ * Badge Component - shadcn/ui base template
  */
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-export const Badge = React.forwardRef(({ className, children, variant = 'default', ...props }, ref) => {
+export const Badge = React.forwardRef(({ className, children, variant = 'default', size = 'default', ...props }, ref) => {
   const variants = {
-    default: 'bg-white/10 text-gh-fg-DEFAULT border-white/20',
-    success: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-    error: 'bg-red-500/20 text-red-400 border-red-500/30',
-    warning: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    info: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    default: 'border-transparent bg-gh-border text-gh-fg',
+    secondary: 'border-transparent bg-gh-canvas-subtle text-gh-fg-muted',
+    success: 'border-transparent bg-gh-success/10 text-gh-success',
+    error: 'border-transparent bg-gh-danger/10 text-gh-danger',
+    warning: 'border-transparent bg-gh-attention/10 text-gh-attention',
+    outline: 'text-gh-fg border-gh-border',
+  };
+
+  const sizes = {
+    default: 'px-2.5 py-0.5 text-xs',
+    sm: 'px-2 py-0.5 text-[10px]',
+    lg: 'px-3 py-1 text-sm',
   };
 
   return (
     <span
       ref={ref}
       className={cn(
-        'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide',
-        'backdrop-blur-sm border',
+        'inline-flex items-center rounded-full border font-semibold transition-colors',
+        'focus:outline-none focus:ring-2 focus:ring-gh-accent-primary focus:ring-offset-2',
         variants[variant],
+        sizes[size],
         className
       )}
       {...props}

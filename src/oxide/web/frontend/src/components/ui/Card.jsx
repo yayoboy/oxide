@@ -1,24 +1,15 @@
 /**
- * Card Component
- * Glassmorphism card with neon effects
+ * Card Component - shadcn/ui base template
  */
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-export const Card = React.forwardRef(({ className, children, variant = 'default', ...props }, ref) => {
-  const variants = {
-    default: 'glass',
-    elevated: 'glass shadow-2xl',
-    interactive: 'glass glass-hover',
-    neon: 'gradient-border',
-  };
-
+export const Card = React.forwardRef(({ className, children, ...props }, ref) => {
   return (
     <div
       ref={ref}
       className={cn(
-        'rounded-2xl p-6 animate-fade-in relative overflow-hidden',
-        variants[variant],
+        'rounded-lg border border-gh-border bg-gh-canvas-subtle',
         className
       )}
       {...props}
@@ -32,7 +23,7 @@ Card.displayName = 'Card';
 export const CardHeader = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex items-center justify-between mb-6 pb-4 border-b border-white/10', className)}
+    className={cn('flex flex-col space-y-1.5 p-6', className)}
     {...props}
   >
     {children}
@@ -43,7 +34,7 @@ CardHeader.displayName = 'CardHeader';
 export const CardTitle = React.forwardRef(({ className, children, ...props }, ref) => (
   <h3
     ref={ref}
-    className={cn('text-xl font-bold text-white flex items-center gap-3', className)}
+    className={cn('text-lg font-semibold leading-none tracking-tight text-gh-fg', className)}
     {...props}
   >
     {children}
@@ -54,7 +45,7 @@ CardTitle.displayName = 'CardTitle';
 export const CardDescription = React.forwardRef(({ className, children, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-sm text-gh-fg-muted mt-1', className)}
+    className={cn('text-sm text-gh-fg-muted', className)}
     {...props}
   >
     {children}
@@ -65,7 +56,7 @@ CardDescription.displayName = 'CardDescription';
 export const CardContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('space-y-4', className)}
+    className={cn('p-6 pt-0', className)}
     {...props}
   >
     {children}
@@ -76,7 +67,7 @@ CardContent.displayName = 'CardContent';
 export const CardFooter = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex items-center justify-between mt-6 pt-4 border-t border-white/10', className)}
+    className={cn('flex items-center p-6 pt-0', className)}
     {...props}
   >
     {children}
