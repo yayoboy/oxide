@@ -12,6 +12,8 @@ const ConfigurationPanel = () => {
   const [error, setError] = useState(null);
   const [reloading, setReloading] = useState(false);
   const [lastReload, setLastReload] = useState(null);
+  const [apiKeyStatus, setApiKeyStatus] = useState({});
+  const [testingKey, setTestingKey] = useState(null);
 
   // Fetch configuration
   const fetchConfig = async () => {
@@ -95,6 +97,84 @@ const ConfigurationPanel = () => {
       setError(err.message);
     }
   };
+
+  // Fetch API key status for a service
+  const fetchApiKeyStatus = async (serviceName) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/api-keys/status/${serviceName}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      console.error(`Error fetching API key status for ${serviceName}:`, err);
+      return null;
+    }
+  };
+
+  // Test API key for a service
+  const testApiKey = async (serviceName) => {
+    try {
+      setTestingKey(serviceName);
+      const response = await fetch('http://localhost:8000/api/api-keys/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          service: serviceName,
+        }),
+      });
+
+      const result = await response.json();
+
+      // Update the API key status with test result
+      setApiKeyStatus(prev => ({
+        ...prev,
+        [serviceName]: {
+          ...prev[serviceName],
+          testResult: result
+        }
+      }));
+
+      // Clear test result after 5 seconds
+      setTimeout(() => {
+        setApiKeyStatus(prev => ({
+          ...prev,
+          [serviceName]: {
+            ...prev[serviceName],
+            testResult: null
+          }
+        }));
+      }, 5000);
+    } catch (err) {
+      console.error('Error testing API key:', err);
+    } finally {
+      setTestingKey(null);
+    }
+  };
+
+  // Load API key status for services that require keys
+  useEffect(() => {
+    const loadApiKeyStatuses = async () => {
+      if (!config || !config.services) return;
+
+      const servicesRequiringKeys = ['openrouter'];
+      const statuses = {};
+
+      for (const serviceName of servicesRequiringKeys) {
+        if (config.services[serviceName]) {
+          const status = await fetchApiKeyStatus(serviceName);
+          if (status) {
+            statuses[serviceName] = status;
+          }
+        }
+      }
+
+      setApiKeyStatus(statuses);
+    };
+
+    loadApiKeyStatuses();
+  }, [config]);
 
   useEffect(() => {
     fetchConfig();
@@ -266,6 +346,70 @@ const ConfigurationPanel = () => {
                               {cap}
                             </Badge>
                           ))}
+                        </div>
+                      )}
+
+                      {/* API Key Status (for services that require keys) */}
+                      {apiKeyStatus[name] && (
+                        <div className="mt-4 p-3 glass rounded-lg border border-gh-border-default">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gh-fg-muted">API Key:</span>
+                              {apiKeyStatus[name].configured ? (
+                                <>
+                                  <Badge variant="default" className="text-xs bg-green-600">Configured</Badge>
+                                  <code className="text-xs font-mono text-gh-fg-muted">
+                                    {apiKeyStatus[name].key_preview}
+                                  </code>
+                                </>
+                              ) : (
+                                <Badge variant="destructive" className="text-xs">Not Configured</Badge>
+                              )}
+                            </div>
+
+                            {apiKeyStatus[name].configured && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => testApiKey(name)}
+                                disabled={testingKey === name}
+                                className="text-xs h-7"
+                              >
+                                {testingKey === name ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                                    Testing...
+                                  </>
+                                ) : (
+                                  '🔍 Test Key'
+                                )}
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Test Result */}
+                          {apiKeyStatus[name].testResult && (
+                            <div className={`mt-2 p-2 rounded text-xs ${
+                              apiKeyStatus[name].testResult.success
+                                ? 'bg-green-900/20 text-green-400 border border-green-700'
+                                : 'bg-red-900/20 text-red-400 border border-red-700'
+                            }`}>
+                              {apiKeyStatus[name].testResult.message}
+                            </div>
+                          )}
+
+                          {/* Instructions if not configured */}
+                          {!apiKeyStatus[name].configured && (
+                            <div className="mt-2 text-xs text-gh-fg-muted">
+                              <div className="font-semibold mb-1">To configure:</div>
+                              <code className="bg-gh-canvas-default px-2 py-1 rounded block">
+                                export {name.toUpperCase()}_API_KEY='your_key_here'
+                              </code>
+                              <div className="mt-1 text-[10px] text-gh-fg-muted/70">
+                                Then restart the Oxide server
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

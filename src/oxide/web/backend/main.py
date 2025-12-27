@@ -20,7 +20,7 @@ from ...config.loader import load_config
 from ...config.hot_reload import init_hot_reload, get_hot_reload_manager
 from ...utils.logging import logger, setup_logging
 from ...cluster import init_cluster_coordinator, get_cluster_coordinator
-from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs, config, auth
+from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs, config, auth, api_keys
 from .auth import initialize_default_user
 from .websocket import WebSocketManager
 from .middleware import limiter, optional_auth_middleware, get_auth_enabled
@@ -259,6 +259,7 @@ app.include_router(memory.router)  # Memory router already has prefix="/api/memo
 app.include_router(cluster.router)  # Cluster router already has prefix="/api/cluster"
 app.include_router(costs.router)  # Costs router already has prefix="/api/costs"
 app.include_router(config.router)  # Config router with prefix="/api/config"
+app.include_router(api_keys.router)  # API keys router with prefix="/api/api-keys"
 
 
 # Serve static files from the frontend build
