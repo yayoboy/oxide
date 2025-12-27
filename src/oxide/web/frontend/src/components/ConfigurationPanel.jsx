@@ -4,6 +4,8 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Alert, AlertDescription } from './ui/Alert';
+import { Input } from './ui/Input';
+import { apiKeysAPI } from '../api/client';
 
 const ConfigurationPanel = () => {
   const [config, setConfig] = useState(null);
@@ -14,6 +16,8 @@ const ConfigurationPanel = () => {
   const [lastReload, setLastReload] = useState(null);
   const [apiKeyStatus, setApiKeyStatus] = useState({});
   const [testingKey, setTestingKey] = useState(null);
+  const [apiKeyInputs, setApiKeyInputs] = useState({});
+  const [showApiKeyInput, setShowApiKeyInput] = useState({});
 
   // Fetch configuration
   const fetchConfig = async () => {
@@ -101,10 +105,8 @@ const ConfigurationPanel = () => {
   // Fetch API key status for a service
   const fetchApiKeyStatus = async (serviceName) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/api-keys/status/${serviceName}`);
-      if (!response.ok) return null;
-      const data = await response.json();
-      return data;
+      const response = await apiKeysAPI.getStatus(serviceName);
+      return response.data;
     } catch (err) {
       console.error(`Error fetching API key status for ${serviceName}:`, err);
       return null;
@@ -112,20 +114,11 @@ const ConfigurationPanel = () => {
   };
 
   // Test API key for a service
-  const testApiKey = async (serviceName) => {
+  const testApiKey = async (serviceName, customKey = null) => {
     try {
       setTestingKey(serviceName);
-      const response = await fetch('http://localhost:8000/api/api-keys/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          service: serviceName,
-        }),
-      });
-
-      const result = await response.json();
+      const response = await apiKeysAPI.testKey(serviceName, customKey);
+      const result = response.data;
 
       // Update the API key status with test result
       setApiKeyStatus(prev => ({
@@ -135,6 +128,17 @@ const ConfigurationPanel = () => {
           testResult: result
         }
       }));
+
+      // If test was successful with custom key, reload status
+      if (result.success && customKey) {
+        const newStatus = await fetchApiKeyStatus(serviceName);
+        if (newStatus) {
+          setApiKeyStatus(prev => ({
+            ...prev,
+            [serviceName]: { ...newStatus, testResult: result }
+          }));
+        }
+      }
 
       // Clear test result after 5 seconds
       setTimeout(() => {
@@ -148,9 +152,35 @@ const ConfigurationPanel = () => {
       }, 5000);
     } catch (err) {
       console.error('Error testing API key:', err);
+      setApiKeyStatus(prev => ({
+        ...prev,
+        [serviceName]: {
+          ...prev[serviceName],
+          testResult: {
+            success: false,
+            message: err.response?.data?.detail || err.message
+          }
+        }
+      }));
     } finally {
       setTestingKey(null);
     }
+  };
+
+  // Handle API key input change
+  const handleApiKeyInputChange = (serviceName, value) => {
+    setApiKeyInputs(prev => ({
+      ...prev,
+      [serviceName]: value
+    }));
+  };
+
+  // Toggle API key input visibility
+  const toggleApiKeyInput = (serviceName) => {
+    setShowApiKeyInput(prev => ({
+      ...prev,
+      [serviceName]: !prev[serviceName]
+    }));
   };
 
   // Load API key status for services that require keys
@@ -367,25 +397,55 @@ const ConfigurationPanel = () => {
                               )}
                             </div>
 
-                            {apiKeyStatus[name].configured && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => testApiKey(name)}
-                                disabled={testingKey === name}
-                                className="text-xs h-7"
-                              >
-                                {testingKey === name ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                                    Testing...
-                                  </>
-                                ) : (
-                                  '🔍 Test Key'
-                                )}
-                              </Button>
-                            )}
+                            <div className="flex gap-2">
+                              {!apiKeyStatus[name].configured && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => toggleApiKeyInput(name)}
+                                  className="text-xs h-7"
+                                >
+                                  {showApiKeyInput[name] ? '❌ Cancel' : '🔑 Add Key'}
+                                </Button>
+                              )}
+                              {(apiKeyStatus[name].configured || showApiKeyInput[name]) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => testApiKey(name, apiKeyInputs[name])}
+                                  disabled={testingKey === name || (!apiKeyStatus[name].configured && !apiKeyInputs[name])}
+                                  className="text-xs h-7"
+                                >
+                                  {testingKey === name ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                                      Testing...
+                                    </>
+                                  ) : (
+                                    '🔍 Test Key'
+                                  )}
+                                </Button>
+                              )}
+                            </div>
                           </div>
+
+                          {/* API Key Input Form */}
+                          {showApiKeyInput[name] && (
+                            <div className="mt-3 space-y-2">
+                              <Input
+                                type="password"
+                                placeholder={`Enter ${name.charAt(0).toUpperCase() + name.slice(1)} API key`}
+                                value={apiKeyInputs[name] || ''}
+                                onChange={(e) => handleApiKeyInputChange(name, e.target.value)}
+                                className="bg-gh-canvas-default border-gh-border-default text-white text-sm"
+                              />
+                              <div className="text-[10px] text-yellow-400 flex items-start gap-1">
+                                <span>⚠️</span>
+                                <span>For security, this key will only be used for testing and won't be saved.
+                                  To persist it, set the environment variable {name.toUpperCase()}_API_KEY and restart the server.</span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Test Result */}
                           {apiKeyStatus[name].testResult && (
@@ -398,10 +458,10 @@ const ConfigurationPanel = () => {
                             </div>
                           )}
 
-                          {/* Instructions if not configured */}
-                          {!apiKeyStatus[name].configured && (
+                          {/* Instructions if not configured and not showing input */}
+                          {!apiKeyStatus[name].configured && !showApiKeyInput[name] && (
                             <div className="mt-2 text-xs text-gh-fg-muted">
-                              <div className="font-semibold mb-1">To configure:</div>
+                              <div className="font-semibold mb-1">Permanent configuration:</div>
                               <code className="bg-gh-canvas-default px-2 py-1 rounded block">
                                 export {name.toUpperCase()}_API_KEY='your_key_here'
                               </code>

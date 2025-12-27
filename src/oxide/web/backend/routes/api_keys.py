@@ -36,7 +36,7 @@ class APIKeyStatus(BaseModel):
     key_preview: Optional[str] = None  # First/last 4 chars only
 
 
-@router.get("/status/{service}", response_model=APIKeyStatus)
+@router.get("/status/{service}/", response_model=APIKeyStatus)
 async def get_api_key_status(service: str):
     """
     Get API key configuration status for a service.
@@ -66,7 +66,7 @@ async def get_api_key_status(service: str):
     )
 
 
-@router.post("/test")
+@router.post("/test/")
 async def test_api_key(request: APIKeyTest):
     """
     Test API key validity by making a test request to the service.
@@ -168,7 +168,7 @@ async def _test_openrouter_key(api_key: str) -> Dict:
         }
 
 
-@router.post("/update")
+@router.post("/update/")
 async def update_api_key(request: APIKeyUpdate):
     """
     Update API key for a service.

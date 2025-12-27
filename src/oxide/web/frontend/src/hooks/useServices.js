@@ -2,7 +2,7 @@
  * React hook for managing services data with WebSocket updates
  * Integrated with Zustand global state
  */
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { servicesAPI } from '../api/client';
 import { useWebSocket } from './useWebSocket';
 import useStore from '../store/useStore';
