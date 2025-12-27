@@ -24,85 +24,70 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen relative overflow-hidden bg-gh-canvas dark:bg-gh-canvas light:bg-gray-50">
-      {/* Animated background particles */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-magenta-500/10 rounded-full blur-3xl animate-pulse delay-2000" />
-      </div>
+      <div className="min-h-screen bg-gh-canvas">
+      {/* Header - shadcn/ui style */}
+      <header className="sticky top-0 z-50 border-b border-gh-border bg-gh-canvas">
+        <div className="max-w-7xl mx-auto px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-md bg-gh-accent-emphasis/10 border border-gh-accent-primary/20 flex items-center justify-center">
+                <span className="text-lg">🔬</span>
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-gh-fg">
+                  Oxide LLM Orchestrator
+                </h1>
+                <p className="text-xs text-gh-fg-muted">
+                  AI Resource Management
+                </p>
+              </div>
+            </div>
 
-      {/* Header - Compact with inline metrics */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10">
-        <div className="glass">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              {/* Logo and Title */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center text-xl neon-glow">
-                  🔬
+            {/* Compact Metrics + Theme Toggle */}
+            <div className="flex items-center gap-2">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
+              {/* WebSocket Status */}
+              {wsConnected && (
+                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-gh-success rounded-full pulse-dot" />
+                  <span className="text-xs text-gh-fg-muted">Live</span>
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold neon-text">
-                    Oxide LLM Orchestrator
-                  </h1>
-                  <p className="text-xs text-gh-fg-muted">
-                    Intelligent AI Resource Management
-                  </p>
-                </div>
+              )}
+
+              {/* Services Status */}
+              <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
+                <span className="text-xs text-gh-fg-muted mr-2">Services:</span>
+                <span className="text-sm font-medium text-gh-fg">
+                  {services?.healthy || 0}/{services?.total || 0}
+                </span>
               </div>
 
-              {/* Compact Metrics + Theme Toggle */}
-              <div className="flex items-center gap-3">
-                {/* Theme Toggle */}
-                <ThemeToggle />
-
-                {/* WebSocket Status */}
-                {wsConnected && (
-                  <div className="glass rounded-full px-3 py-1.5 flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full pulse-neon" />
-                    <span className="text-xs font-medium text-cyan-400">Live</span>
-                  </div>
-                )}
-
-                {/* Services Status */}
-                <div className="glass rounded-lg px-3 py-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gh-fg-muted">Services:</span>
-                    <span className="text-sm font-bold text-white">
-                      {services?.healthy || 0}/{services?.total || 0}
-                    </span>
-                  </div>
+              {/* Active Tasks */}
+              {metrics?.active_tasks !== undefined && (
+                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
+                  <span className="text-xs text-gh-fg-muted mr-2">Active:</span>
+                  <span className="text-sm font-medium text-gh-accent-primary">
+                    {metrics.active_tasks}
+                  </span>
                 </div>
+              )}
 
-                {/* Active Tasks */}
-                {metrics?.active_tasks !== undefined && (
-                  <div className="glass rounded-lg px-3 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gh-fg-muted">Active:</span>
-                      <span className="text-sm font-bold text-cyan-400">
-                        {metrics.active_tasks}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* System Load */}
-                {metrics?.system?.cpu_percent !== undefined && (
-                  <div className="glass rounded-lg px-3 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gh-fg-muted">CPU:</span>
-                      <span className={`text-sm font-bold ${
-                        metrics.system.cpu_percent > 80 ? 'text-red-400' :
-                        metrics.system.cpu_percent > 50 ? 'text-yellow-400' :
-                        'text-green-400'
-                      }`}>
-                        {metrics.system.cpu_percent}%
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* System Load */}
+              {metrics?.system?.cpu_percent !== undefined && (
+                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
+                  <span className="text-xs text-gh-fg-muted mr-2">CPU:</span>
+                  <span className={`text-sm font-medium ${
+                    metrics.system.cpu_percent > 80 ? 'text-gh-danger' :
+                    metrics.system.cpu_percent > 50 ? 'text-gh-attention' :
+                    'text-gh-success'
+                  }`}>
+                    {metrics.system.cpu_percent}%
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -176,19 +161,19 @@ function App() {
         </Tabs>
 
         {/* Footer */}
-        <footer className="mt-16 text-center py-8 border-t border-white/10">
-          <div className="glass inline-block rounded-2xl px-6 py-4">
+        <footer className="mt-16 py-6 border-t border-gh-border">
+          <div className="text-center">
             <p className="text-sm text-gh-fg-muted">
-              Oxide v0.1.0 - Intelligent LLM Orchestration
+              Oxide v0.1.0 · LLM Orchestration
             </p>
             <p className="text-sm mt-2">
               <a
                 href="http://localhost:8000/docs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-cyan-400 hover:text-cyan-300 transition-colors hover:underline"
+                className="text-gh-accent-primary hover:underline"
               >
-                API Documentation →
+                API Documentation
               </a>
             </p>
           </div>

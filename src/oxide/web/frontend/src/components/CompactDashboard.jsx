@@ -13,31 +13,25 @@ import { CompactSystemBar } from './ui/CompactSystemBar';
 import { LLMMetricsPanel } from './ui/LLMMetricsPanel';
 import { cn } from '../lib/utils';
 
-// Provider visual themes for clear separation
+// Provider themes - shadcn/ui style
 const PROVIDER_THEMES = {
   cli: {
-    gradient: 'from-blue-500 to-cyan-500',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
     icon: '⚡',
     label: 'CLI Providers',
-    subtitle: 'Direct command-line tools'
+    subtitle: 'Direct command-line tools',
+    accentColor: 'text-gh-accent-primary'
   },
   local: {
-    gradient: 'from-green-500 to-emerald-500',
-    bg: 'bg-green-500/10',
-    border: 'border-green-500/30',
     icon: '🏠',
     label: 'Local Services',
-    subtitle: 'Running on this machine'
+    subtitle: 'Running on this machine',
+    accentColor: 'text-gh-success'
   },
   remote: {
-    gradient: 'from-purple-500 to-magenta-500',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/30',
     icon: '🌐',
     label: 'Remote Services',
-    subtitle: 'External API endpoints'
+    subtitle: 'External API endpoints',
+    accentColor: 'text-gh-attention'
   }
 };
 
@@ -116,31 +110,21 @@ const CompactDashboard = ({ services, metrics }) => {
 
 /**
  * Provider Section Component
- * Enhanced visual separation with color-coded themes
+ * shadcn/ui clean card design
  */
 const ProviderSection = ({ type, services }) => {
   const theme = PROVIDER_THEMES[type];
   const allHealthy = services.length > 0 && services.every(s => s.healthy);
 
   return (
-    <div className={cn(
-      "relative rounded-xl border-2 overflow-hidden transition-all hover:scale-[1.02]",
-      theme.border,
-      theme.bg
-    )}>
-      {/* Gradient top accent */}
-      <div className={cn(
-        "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
-        theme.gradient
-      )} />
-
-      {/* Header - compact */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+    <div className="rounded-lg border border-gh-border bg-gh-canvas-subtle">
+      {/* Header */}
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gh-border">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{theme.icon}</span>
+          <span className="text-lg">{theme.icon}</span>
           <div>
-            <h3 className="text-sm font-semibold text-white">{theme.label}</h3>
-            <p className="text-xs text-gh-fg-subtle">{theme.subtitle}</p>
+            <h3 className="text-sm font-semibold text-gh-fg">{theme.label}</h3>
+            <p className="text-xs text-gh-fg-muted">{theme.subtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -154,8 +138,8 @@ const ProviderSection = ({ type, services }) => {
         </div>
       </div>
 
-      {/* Service list - compact */}
-      <div className="p-3 space-y-2">
+      {/* Service list */}
+      <div className="p-3 space-y-1.5">
         {services.length > 0 ? (
           services.map(service => (
             <CompactServiceRow key={service.name} service={service} theme={theme} />
@@ -177,7 +161,7 @@ const CompactServiceRow = ({ service, theme }) => {
   const model = info?.default_model || info?.model || 'auto-detect';
 
   return (
-    <div className="glass rounded-lg p-2 hover:bg-white/5 transition-all">
+    <div className="rounded-md border border-gh-border bg-gh-canvas px-3 py-2 hover:bg-gh-border-muted transition-colors">
       <div
         className="flex items-center gap-2 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -185,33 +169,25 @@ const CompactServiceRow = ({ service, theme }) => {
         {/* Status dot */}
         <div className={cn(
           'w-2 h-2 rounded-full flex-shrink-0',
-          healthy ? 'bg-cyan-400 pulse-neon' : 'bg-red-400'
+          healthy ? 'bg-gh-success' : 'bg-gh-danger'
         )} />
 
         {/* Name + Model in one line */}
         <div className="flex-1 min-w-0 flex items-baseline gap-2">
-          <span className="text-sm font-medium text-white truncate">
+          <span className="text-sm font-medium text-gh-fg truncate">
             {name}
           </span>
-          <span className="text-xs text-gh-fg-subtle truncate">
+          <span className="text-xs text-gh-fg-muted truncate">
             {model}
           </span>
         </div>
 
-        {/* Inline metrics for HTTP services */}
-        {info?.base_url && healthy && (
-          <div className="hidden md:flex items-center gap-2 text-xs">
-            <span className="text-cyan-400">⚡ ~0ms</span>
-            <span className="text-purple-400">📊 Ready</span>
-          </div>
-        )}
-
         {/* Status badge */}
         <div className={cn(
-          'w-10 h-5 rounded text-xs font-medium flex items-center justify-center flex-shrink-0',
+          'px-2 py-0.5 rounded text-xs font-medium flex-shrink-0',
           healthy
-            ? 'bg-cyan-500/20 text-cyan-400'
-            : 'bg-red-500/20 text-red-400'
+            ? 'bg-gh-success/10 text-gh-success border border-gh-success/20'
+            : 'bg-gh-danger/10 text-gh-danger border border-gh-danger/20'
         )}>
           {healthy ? 'UP' : 'DN'}
         </div>
@@ -219,8 +195,8 @@ const CompactServiceRow = ({ service, theme }) => {
 
       {/* Expandable details */}
       {expanded && info?.base_url && (
-        <div className="mt-2 pt-2 border-t border-white/5 text-xs">
-          <span className="text-gh-fg-subtle font-mono break-all">{info.base_url}</span>
+        <div className="mt-2 pt-2 border-t border-gh-border text-xs">
+          <span className="text-gh-fg-muted font-mono break-all">{info.base_url}</span>
         </div>
       )}
     </div>
@@ -279,8 +255,8 @@ const ServiceRow = ({ service, showMetrics = false }) => {
  * Empty state component
  */
 const EmptyState = ({ icon, text }) => (
-  <div className="text-center py-8 opacity-40">
-    <div className="text-4xl mb-2">{icon}</div>
+  <div className="text-center py-8">
+    <div className="text-3xl mb-2 opacity-50">{icon}</div>
     <div className="text-sm text-gh-fg-muted">{text}</div>
   </div>
 );
