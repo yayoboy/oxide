@@ -6,7 +6,8 @@ from .utils import (
     get_password_hash,
     create_access_token,
     decode_access_token,
-    generate_api_key
+    generate_api_key,
+    ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from .models import Token, TokenData, LoginRequest, User, UserInDB, APIKey
 from .dependencies import (
@@ -32,6 +33,7 @@ __all__ = [
     "create_access_token",
     "decode_access_token",
     "generate_api_key",
+    "ACCESS_TOKEN_EXPIRE_MINUTES",
     # Models
     "Token",
     "TokenData",

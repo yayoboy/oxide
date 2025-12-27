@@ -12,14 +12,18 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Requ
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from ...core.orchestrator import Orchestrator
 from ...config.loader import load_config
 from ...config.hot_reload import init_hot_reload, get_hot_reload_manager
 from ...utils.logging import logger, setup_logging
 from ...cluster import init_cluster_coordinator, get_cluster_coordinator
-from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs, config
+from .routes import services, tasks, monitoring, routing, machines, memory, cluster, costs, config, auth
+from .auth import initialize_default_user
 from .websocket import WebSocketManager
+from .middleware import limiter, optional_auth_middleware, get_auth_enabled
 
 
 # Global instances
@@ -99,6 +103,9 @@ async def lifespan(app: FastAPI):
     global orchestrator, ws_manager
 
     logger.info("Starting Oxide Web Backend")
+
+    # Initialize default admin user if needed
+    initialize_default_user()
 
     # Initialize hot reload manager
     from pathlib import Path
@@ -197,17 +204,39 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# Add rate limiter state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS middleware - configured for security
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+    expose_headers=["Content-Length", "X-Request-ID"],
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# Optional authentication middleware (enabled via OXIDE_AUTH_ENABLED=true)
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Authentication middleware wrapper."""
+    return await optional_auth_middleware(request, call_next)
 
 
 # Include API routers (these take precedence over static files)
+# Authentication routes (no auth required)
+app.include_router(auth.router, tags=["authentication"])
+
+# Protected API routes (require authentication)
+# TODO: Add authentication dependencies to protect these routes
 app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])

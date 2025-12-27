@@ -1,8 +1,10 @@
 """
 Authentication routes - login, logout, user management.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from datetime import timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..auth import (
     LoginRequest,
@@ -21,14 +23,19 @@ from ..auth import (
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login", response_model=Token)
-async def login(credentials: LoginRequest):
+@limiter.limit("5/minute")  # Max 5 login attempts per minute
+async def login(request: Request, credentials: LoginRequest):
     """
     Authenticate user and return JWT token.
 
+    Rate limited to 5 attempts per minute to prevent brute force attacks.
+
     Args:
+        request: FastAPI request (for rate limiting)
         credentials: Username and password
 
     Returns:
@@ -162,14 +169,19 @@ async def create_user(
 
 
 @router.post("/api-keys")
+@limiter.limit("10/hour")  # Max 10 API keys per hour
 async def create_api_key(
+    request: Request,
     name: str,
     current_user: User = Depends(get_current_user)
 ):
     """
     Create a new API key for current user.
 
+    Rate limited to 10 keys per hour to prevent abuse.
+
     Args:
+        request: FastAPI request (for rate limiting)
         name: Descriptive name for the API key
         current_user: Current authenticated user
 
