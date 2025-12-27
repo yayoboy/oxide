@@ -13,6 +13,7 @@ from ....core.orchestrator import Orchestrator
 from ....utils.logging import logger
 from ....utils.exceptions import NoServiceAvailableError, ExecutionError
 from ....utils.task_storage import get_task_storage
+from ....utils.path_validator import validate_paths, SecurityError
 
 
 router = APIRouter()
@@ -60,6 +61,19 @@ async def execute_task(
         Task ID and initial status
     """
     try:
+        # Validate file paths for security
+        validated_files = request.files
+        if request.files:
+            try:
+                validated_paths = validate_paths(request.files, require_exists=False)
+                validated_files = [str(p) for p in validated_paths]
+            except SecurityError as e:
+                logger.error(f"Security validation failed: {e}")
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Security validation failed: {str(e)}"
+                )
+
         # Generate task ID
         task_id = str(uuid.uuid4())
 
@@ -69,14 +83,14 @@ async def execute_task(
         # Classify task to get type and service
         from ....core.classifier import TaskClassifier
         classifier = TaskClassifier()
-        task_info = classifier.classify(request.prompt, request.files)
+        task_info = classifier.classify(request.prompt, validated_files)
         service = task_info.recommended_services[0] if task_info.recommended_services else "unknown"
 
         # Store task info
         task_storage.add_task(
             task_id=task_id,
             prompt=request.prompt,
-            files=request.files,
+            files=validated_files,
             preferences=request.preferences,
             service=service,
             task_type=task_info.task_type.value

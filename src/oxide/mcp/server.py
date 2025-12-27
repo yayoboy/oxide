@@ -102,6 +102,14 @@ def initialize():
             console=config.logging.console
         )
 
+        # Initialize path validator with configured allowed directories
+        from ..utils.path_validator import init_path_validator
+        if config.security.path_validation_enabled:
+            init_path_validator(allowed_dirs=config.security.allowed_directories)
+            logger.info("✓ Path validator initialized with security whitelist")
+        else:
+            logger.warning("⚠️ Path validation DISABLED - use only for testing!")
+
         # Initialize orchestrator
         orchestrator = Orchestrator(config)
 

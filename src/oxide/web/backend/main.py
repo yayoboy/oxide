@@ -124,6 +124,14 @@ async def lifespan(app: FastAPI):
         console=cfg.logging.console
     )
 
+    # Initialize path validator with configured allowed directories
+    from ...utils.path_validator import init_path_validator
+    if cfg.security.path_validation_enabled:
+        init_path_validator(allowed_dirs=cfg.security.allowed_directories)
+        logger.info("✓ Path validator initialized with security whitelist")
+    else:
+        logger.warning("⚠️ Path validation DISABLED - use only for testing!")
+
     # Initialize orchestrator
     orchestrator = Orchestrator(cfg)
 
@@ -135,6 +143,11 @@ async def lifespan(app: FastAPI):
         logger.info("Configuration reloaded, updating orchestrator...")
 
         try:
+            # Re-initialize path validator with new security config
+            if event.new_config.security.path_validation_enabled:
+                init_path_validator(allowed_dirs=event.new_config.security.allowed_directories)
+                logger.info("✓ Path validator reloaded with updated whitelist")
+
             # Re-initialize orchestrator with new config
             # Note: This is a simplified reload. Full reload would require
             # stopping old adapters and starting new ones.

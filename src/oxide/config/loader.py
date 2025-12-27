@@ -82,12 +82,27 @@ class LoggingConfig(BaseModel):
     console: bool = True
 
 
+class SecurityConfig(BaseModel):
+    """Security configuration for file system sandboxing."""
+    allowed_directories: List[str] = Field(
+        default_factory=lambda: [
+            "~/Documents",
+            "~/Projects",
+            "~/Downloads",
+            "/tmp",
+            "/workspace"
+        ]
+    )
+    path_validation_enabled: bool = True
+
+
 class Config(BaseModel):
     """Main configuration object."""
     services: Dict[str, ServiceConfig]
     routing_rules: Dict[str, RoutingRuleConfig]
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
 
     @field_validator("services")
     @classmethod

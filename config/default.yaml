@@ -103,3 +103,14 @@ logging:
   level: INFO
   file: /tmp/oxide.log
   console: true
+security:
+  # File system sandboxing - allowed directories for file access
+  # Paths can use ~ for home directory
+  allowed_directories:
+    - ~/Documents
+    - ~/Projects
+    - ~/Downloads
+    - /tmp
+    - /workspace  # Docker mount point
+  # Enable/disable path validation (disable only for testing!)
+  path_validation_enabled: true

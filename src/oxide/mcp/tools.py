@@ -13,6 +13,7 @@ from ..core.orchestrator import Orchestrator
 from ..execution.parallel import ParallelExecutor
 from ..utils.logging import logger
 from ..utils.task_storage import get_task_storage
+from ..utils.path_validator import validate_paths, SecurityError
 
 
 class OxideTools:
@@ -71,15 +72,24 @@ class OxideTools:
         service = task_info.recommended_services[0] if task_info.recommended_services else "unknown"
 
         try:
-            # Validate files exist
+            # Validate files exist and are in allowed directories
             validated_files = files or []
             if files:
                 temp_files = []
                 for file_path in files:
-                    path = Path(file_path).expanduser().resolve()
-                    if path.exists():
-                        temp_files.append(str(path))
-                    else:
+                    try:
+                        # Security validation - check path is in allowed directories
+                        validated_path = validate_paths([file_path], require_exists=True)[0]
+                        temp_files.append(str(validated_path))
+                    except SecurityError as e:
+                        # Security violation - log and reject
+                        self.logger.error(f"Security validation failed for path: {file_path} - {e}")
+                        yield TextContent(
+                            type="text",
+                            text=f"🚫 Security Error: {str(e)}\n\n"
+                        )
+                        # Don't include this file in validated list
+                    except FileNotFoundError:
                         yield TextContent(
                             type="text",
                             text=f"⚠️ Warning: File not found: {file_path}\n\n"
@@ -151,9 +161,17 @@ class OxideTools:
         self.logger.info(f"analyze_parallel called for directory: {directory}")
 
         try:
-            # Discover files in directory
-            dir_path = Path(directory).expanduser().resolve()
-            if not dir_path.exists():
+            # Security validation - check directory is in allowed locations
+            try:
+                dir_path = validate_paths([directory], require_exists=True)[0]
+            except SecurityError as e:
+                self.logger.error(f"Security validation failed for directory: {directory} - {e}")
+                yield TextContent(
+                    type="text",
+                    text=f"🚫 Security Error: {str(e)}\n"
+                )
+                return
+            except FileNotFoundError:
                 yield TextContent(
                     type="text",
                     text=f"❌ Error: Directory not found: {directory}\n"
