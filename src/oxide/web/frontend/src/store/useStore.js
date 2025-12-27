@@ -121,10 +121,16 @@ const useStore = create(
       {
         name: 'oxide-storage', // localStorage key
         partialize: (state) => ({
-          // Only persist these fields
+          // Persist user preferences and UI state
           preferences: state.preferences,
           selectedTab: state.selectedTab,
           sidebarOpen: state.sidebarOpen,
+
+          // Persist critical data for offline/reload scenarios
+          metrics: state.metrics,
+          services: state.services,
+          tasks: state.tasks,
+          machines: state.machines,
         }),
       }
     ),

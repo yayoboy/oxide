@@ -146,10 +146,20 @@ const TaskHistory = () => {
               >
                 {/* Task Header */}
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant={getStatusBadge(task.status)}>
                       {task.status}
                     </Badge>
+                    {task.service && (
+                      <Badge variant="default">
+                        🤖 {task.service}
+                      </Badge>
+                    )}
+                    {task.task_type && (
+                      <Badge variant="outline">
+                        {task.task_type}
+                      </Badge>
+                    )}
                     <span className="text-xs text-gh-fg-muted">
                       {formatTimestamp(task.created_at)}
                     </span>

@@ -6,11 +6,7 @@ from typing import Optional, Dict, Any
 import os
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 # JWT configuration
 SECRET_KEY = os.getenv("OXIDE_SECRET_KEY", "INSECURE_DEFAULT_KEY_CHANGE_IN_PRODUCTION")
@@ -29,7 +25,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode('utf-8'),
+        hashed_password.encode('utf-8')
+    )
 
 
 def get_password_hash(password: str) -> str:
@@ -42,7 +41,10 @@ def get_password_hash(password: str) -> str:
     Returns:
         Hashed password
     """
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        password.encode('utf-8'),
+        bcrypt.gensalt()
+    ).decode('utf-8')
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:

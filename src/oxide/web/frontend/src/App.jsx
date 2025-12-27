@@ -11,6 +11,7 @@ import TaskExecutor from './components/TaskExecutor';
 import TaskAssignmentManager from './components/TaskAssignmentManager';
 import SystemMonitor from './components/SystemMonitor';
 import ConfigurationPanel from './components/ConfigurationPanel';
+import ContextMemory from './components/ContextMemory';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/Tabs';
 import { useServices } from './hooks/useServices';
 import { useMetrics } from './hooks/useMetrics';
@@ -106,6 +107,9 @@ function App() {
             <TabsTrigger value="history" icon="📜">
               Task History
             </TabsTrigger>
+            <TabsTrigger value="memory" icon="🧠">
+              Context Memory
+            </TabsTrigger>
             <TabsTrigger value="routing" icon="🔀">
               Routing Rules
             </TabsTrigger>
@@ -142,6 +146,11 @@ function App() {
           {/* Task History Tab */}
           <TabsContent value="history">
             <TaskHistory key={taskHistoryKey} />
+          </TabsContent>
+
+          {/* Context Memory Tab */}
+          <TabsContent value="memory">
+            <ContextMemory />
           </TabsContent>
 
           {/* Routing Tab */}
