@@ -8,6 +8,9 @@ export default {
   theme: {
     extend: {
       colors: {
+        border: '#30363d',
+        background: '#0d1117',
+        foreground: '#e6edf3',
         'gh-canvas': {
           DEFAULT: '#0d1117',
           subtle: '#161b22',
@@ -17,7 +20,7 @@ export default {
           muted: '#21262d',
         },
         'gh-fg': {
-          DEFAULT: '#c9d1d9',
+          DEFAULT: '#e6edf3',
           muted: '#8b949e',
           subtle: '#6e7681',
         },
