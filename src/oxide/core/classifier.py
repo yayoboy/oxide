@@ -202,19 +202,22 @@ class TaskClassifier:
     ) -> List[str]:
         """
         Recommend services based on task type.
+
+        OpenRouter with free models is included as a fallback for all task types
+        to maximize usage of free cloud models.
         """
         recommendations = {
-            TaskType.CODEBASE_ANALYSIS: ["gemini", "qwen"],
-            TaskType.CODE_REVIEW: ["qwen", "ollama_local"],
-            TaskType.CODE_GENERATION: ["qwen", "ollama_local"],
-            TaskType.QUICK_QUERY: ["ollama_local", "ollama_remote"],
-            TaskType.ARCHITECTURE_DESIGN: ["gemini", "qwen"],
-            TaskType.DEBUGGING: ["qwen", "ollama_local"],
-            TaskType.DOCUMENTATION: ["ollama_local", "qwen"],
-            TaskType.REFACTORING: ["qwen", "ollama_local"],
+            TaskType.CODEBASE_ANALYSIS: ["gemini", "qwen", "openrouter"],
+            TaskType.CODE_REVIEW: ["qwen", "openrouter", "ollama_local"],
+            TaskType.CODE_GENERATION: ["qwen", "openrouter", "ollama_local"],
+            TaskType.QUICK_QUERY: ["ollama_local", "openrouter", "ollama_remote"],
+            TaskType.ARCHITECTURE_DESIGN: ["gemini", "qwen", "openrouter"],
+            TaskType.DEBUGGING: ["qwen", "openrouter", "ollama_local"],
+            TaskType.DOCUMENTATION: ["ollama_local", "openrouter", "qwen"],
+            TaskType.REFACTORING: ["qwen", "openrouter", "ollama_local"],
         }
 
-        return recommendations.get(task_type, ["qwen"])
+        return recommendations.get(task_type, ["qwen", "openrouter"])
 
     def _should_use_parallel(self, task_type: TaskType, file_count: int) -> bool:
         """
