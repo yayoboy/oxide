@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.oxide.web.backend.routes.machines import router
+from oxide.web.backend.routes.machines import router
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def mock_orchestrator():
 @pytest.fixture
 def mock_psutil():
     """Mock psutil metrics"""
-    with patch('src.oxide.web.backend.routes.machines.psutil') as mock:
+    with patch('oxide.web.backend.routes.machines.psutil') as mock:
         # Mock CPU
         mock.cpu_percent.return_value = 45.5
 
@@ -64,7 +64,7 @@ def mock_psutil():
 
 def override_get_orchestrator(mock_orch):
     """Override dependency"""
-    from src.oxide.web.backend.routes.machines import get_orchestrator
+    from oxide.web.backend.routes.machines import get_orchestrator
 
     def _override():
         return mock_orch
@@ -348,7 +348,7 @@ class TestGetMachine:
 
     def test_get_machine_error_handling(self, client, mock_orchestrator, app):
         """Test error handling when psutil fails"""
-        with patch('src.oxide.web.backend.routes.machines.psutil') as mock_psutil:
+        with patch('oxide.web.backend.routes.machines.psutil') as mock_psutil:
             mock_psutil.cpu_percent.side_effect = Exception("CPU error")
 
             app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
@@ -432,4 +432,4 @@ class TestServiceTypeVariations:
 
 
 # Import statement that needs to be at module level for dependency override
-from src.oxide.web.backend.routes.machines import get_orchestrator
+from oxide.web.backend.routes.machines import get_orchestrator
