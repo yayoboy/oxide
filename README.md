@@ -1,5 +1,12 @@
 # 🔬 Oxide - Intelligent LLM Orchestrator
 
+[![CI](https://github.com/yayoboy/oxide/actions/workflows/ci.yml/badge.svg)](https://github.com/yayoboy/oxide/actions/workflows/ci.yml)
+[![Security](https://github.com/yayoboy/oxide/actions/workflows/security.yml/badge.svg)](https://github.com/yayoboy/oxide/actions/workflows/security.yml)
+[![Deploy](https://github.com/yayoboy/oxide/actions/workflows/deploy.yml/badge.svg)](https://github.com/yayoboy/oxide/actions/workflows/deploy.yml)
+[![Documentation](https://github.com/yayoboy/oxide/actions/workflows/docs.yml/badge.svg)](https://github.com/yayoboy/oxide/actions/workflows/docs.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+
 **Intelligent routing and orchestration for distributed AI resources**
 
 Oxide is a comprehensive platform for managing and orchestrating multiple Large Language Model (LLM) services. It intelligently routes tasks to the most appropriate LLM based on task characteristics, provides a web dashboard for monitoring and management, and integrates seamlessly with Claude Code via Model Context Protocol (MCP).
