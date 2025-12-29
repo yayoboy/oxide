@@ -1,18 +1,11 @@
 /**
- * Main App Component
- * Oxide LLM Orchestrator Dashboard with Glassmorphism UI
+ * Oxide LLM Orchestrator - Minimal Web UI
+ * Fast, clean, essential interface
  */
 import React, { useState } from 'react';
-import ThemeProvider from './components/ThemeProvider';
-import ThemeToggle from './components/ThemeToggle';
-import CompactDashboard from './components/CompactDashboard';
+import MinimalDashboard from './components/MinimalDashboard';
 import TaskHistory from './components/TaskHistory';
 import TaskExecutor from './components/TaskExecutor';
-import TaskAssignmentManager from './components/TaskAssignmentManager';
-import SystemMonitor from './components/SystemMonitor';
-import ConfigurationPanel from './components/ConfigurationPanel';
-import ContextMemory from './components/ContextMemory';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/Tabs';
 import { useServices } from './hooks/useServices';
 import { useMetrics } from './hooks/useMetrics';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -21,175 +14,146 @@ function App() {
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { metrics, loading: metricsLoading } = useMetrics();
   const { connected: wsConnected } = useWebSocket();
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [taskHistoryKey, setTaskHistoryKey] = useState(0);
 
+  // Theme toggle
+  const [isDark, setIsDark] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+
+  React.useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
   return (
-    <ThemeProvider>
-      <div className="min-h-screen bg-gh-canvas">
-      {/* Header - shadcn/ui style */}
-      <header className="sticky top-0 z-50 border-b border-gh-border bg-gh-canvas">
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo and Title */}
+    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors">
+      {/* Header - Minimal */}
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-md bg-gh-accent-emphasis/10 border border-gh-accent-primary/20 flex items-center justify-center">
-                <span className="text-lg">🔬</span>
+              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                Ox
               </div>
-              <div>
-                <h1 className="text-lg font-semibold text-gh-fg">
-                  Oxide LLM Orchestrator
-                </h1>
-                <p className="text-xs text-gh-fg-muted">
-                  AI Resource Management
-                </p>
-              </div>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Oxide Orchestrator
+              </h1>
             </div>
 
-            {/* Compact Metrics + Theme Toggle */}
-            <div className="flex items-center gap-2">
-              {/* Theme Toggle */}
-              <ThemeToggle />
-
+            {/* Status + Theme */}
+            <div className="flex items-center gap-3">
               {/* WebSocket Status */}
               {wsConnected && (
-                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5 flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 bg-gh-success rounded-full pulse-dot" />
-                  <span className="text-xs text-gh-fg-muted">Live</span>
+                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="hidden sm:inline">Live</span>
                 </div>
               )}
 
-              {/* Services Status */}
-              <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
-                <span className="text-xs text-gh-fg-muted mr-2">Services:</span>
-                <span className="text-sm font-medium text-gh-fg">
+              {/* Services Count */}
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium text-gray-900 dark:text-gray-100">
                   {services?.healthy || 0}/{services?.total || 0}
                 </span>
+                <span className="hidden sm:inline ml-1">services</span>
               </div>
 
-              {/* Active Tasks */}
-              {metrics?.active_tasks !== undefined && (
-                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
-                  <span className="text-xs text-gh-fg-muted mr-2">Active:</span>
-                  <span className="text-sm font-medium text-gh-accent-primary">
-                    {metrics.active_tasks}
-                  </span>
-                </div>
-              )}
-
-              {/* System Load */}
-              {metrics?.system?.cpu_percent !== undefined && (
-                <div className="rounded-md border border-gh-border bg-gh-canvas-subtle px-3 py-1.5">
-                  <span className="text-xs text-gh-fg-muted mr-2">CPU:</span>
-                  <span className={`text-sm font-medium ${
-                    metrics.system.cpu_percent > 80 ? 'text-gh-danger' :
-                    metrics.system.cpu_percent > 50 ? 'text-gh-attention' :
-                    'text-gh-success'
-                  }`}>
-                    {metrics.system.cpu_percent}%
-                  </span>
-                </div>
-              )}
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setIsDark(!isDark)}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Toggle theme"
+              >
+                {isDark ? '☀️' : '🌙'}
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="dashboard">
-          <TabsList>
-            <TabsTrigger value="dashboard" icon="📊">
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="tasks" icon="⚡">
-              Execute Tasks
-            </TabsTrigger>
-            <TabsTrigger value="history" icon="📜">
-              Task History
-            </TabsTrigger>
-            <TabsTrigger value="memory" icon="🧠">
-              Context Memory
-            </TabsTrigger>
-            <TabsTrigger value="routing" icon="🔀">
-              Routing Rules
-            </TabsTrigger>
-            <TabsTrigger value="monitor" icon="💻">
-              System Monitor
-            </TabsTrigger>
-            <TabsTrigger value="config" icon="⚙️">
-              Configuration
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Dashboard Tab - Compact unified view */}
-          <TabsContent value="dashboard">
-            {servicesLoading || metricsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="glass rounded-2xl px-8 py-4">
-                  <div className="text-gh-fg-muted animate-pulse">Loading dashboard...</div>
-                </div>
-              </div>
-            ) : servicesError ? (
-              <div className="glass rounded-2xl p-6 border-2 border-red-500/30 bg-red-500/10">
-                <p className="text-red-400">Error loading services: {servicesError}</p>
-              </div>
-            ) : (
-              <CompactDashboard services={services} metrics={metrics} />
-            )}
-          </TabsContent>
-
-          {/* Execute Tasks Tab */}
-          <TabsContent value="tasks">
-            <TaskExecutor onTaskCompleted={() => setTaskHistoryKey((prev) => prev + 1)} />
-          </TabsContent>
-
-          {/* Task History Tab */}
-          <TabsContent value="history">
-            <TaskHistory key={taskHistoryKey} />
-          </TabsContent>
-
-          {/* Context Memory Tab */}
-          <TabsContent value="memory">
-            <ContextMemory />
-          </TabsContent>
-
-          {/* Routing Tab */}
-          <TabsContent value="routing">
-            <TaskAssignmentManager />
-          </TabsContent>
-
-          {/* System Monitor Tab */}
-          <TabsContent value="monitor">
-            <SystemMonitor />
-          </TabsContent>
-
-          {/* Configuration Tab */}
-          <TabsContent value="config">
-            <ConfigurationPanel />
-          </TabsContent>
-        </Tabs>
-
-        {/* Footer */}
-        <footer className="mt-16 py-6 border-t border-gh-border">
-          <div className="text-center">
-            <p className="text-sm text-gh-fg-muted">
-              Oxide v0.1.0 · LLM Orchestration
-            </p>
-            <p className="text-sm mt-2">
-              <a
-                href="http://localhost:8000/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gh-accent-primary hover:underline"
+      {/* Navigation Tabs - Minimal */}
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex gap-6">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+              { id: 'execute', label: 'Execute', icon: '⚡' },
+              { id: 'history', label: 'History', icon: '📜' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-1 py-4 border-b-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
               >
-                API Documentation
-              </a>
+                <span>{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error State */}
+        {servicesError && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-800 dark:text-red-200">
+              ⚠️ Error loading services: {servicesError}
             </p>
           </div>
-        </footer>
+        )}
+
+        {/* Loading State */}
+        {(servicesLoading || metricsLoading) && activeTab === 'dashboard' ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-gray-600 dark:text-gray-400 animate-pulse">
+              Loading dashboard...
+            </div>
+          </div>
+        ) : null}
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && !servicesLoading && !metricsLoading && (
+          <MinimalDashboard services={services} metrics={metrics} />
+        )}
+
+        {/* Execute Tab */}
+        {activeTab === 'execute' && (
+          <TaskExecutor onTaskCompleted={() => setTaskHistoryKey((prev) => prev + 1)} />
+        )}
+
+        {/* History Tab */}
+        {activeTab === 'history' && <TaskHistory key={taskHistoryKey} />}
       </main>
+
+      {/* Footer - Minimal */}
+      <footer className="border-t border-gray-200 dark:border-gray-800 mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+            <div>Oxide v0.1.0</div>
+            <a
+              href="http://localhost:8000/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              API Docs →
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
-    </ThemeProvider>
   );
 }
 
