@@ -10,6 +10,7 @@ Replaces YAML file configuration with database storage for:
 import sqlite3
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -680,80 +681,79 @@ class ConfigStorageSQLite:
                 - oxide_version: Oxide version string
                 - features: List of supported features (will be JSON serialized)
         """
-        conn = self._get_connection()
-        now = time.time()
+        with self._get_connection() as conn:
+            now = time.time()
 
-        # Serialize complex fields
-        services_json = json.dumps(node_data.get('services', {}))
-        features_json = json.dumps(node_data.get('features', []))
+            # Serialize complex fields
+            services_json = json.dumps(node_data.get('services', {}))
+            features_json = json.dumps(node_data.get('features', []))
 
-        # Check if node already exists
-        existing = conn.execute(
-            "SELECT first_seen, enabled FROM discovered_nodes WHERE node_id = ?",
-            (node_data['node_id'],)
-        ).fetchone()
+            # Check if node already exists
+            existing = conn.execute(
+                "SELECT first_seen, enabled FROM discovered_nodes WHERE node_id = ?",
+                (node_data['node_id'],)
+            ).fetchone()
 
-        if existing:
-            # Update existing node, preserve first_seen and enabled
-            conn.execute("""
-                UPDATE discovered_nodes SET
-                    hostname = ?,
-                    ip_address = ?,
-                    port = ?,
-                    services = ?,
-                    cpu_percent = ?,
-                    memory_percent = ?,
-                    active_tasks = ?,
-                    total_tasks = ?,
-                    healthy = ?,
-                    last_seen = ?,
-                    oxide_version = ?,
-                    features = ?
-                WHERE node_id = ?
-            """, (
-                node_data['hostname'],
-                node_data['ip_address'],
-                node_data['port'],
-                services_json,
-                node_data.get('cpu_percent', 0.0),
-                node_data.get('memory_percent', 0.0),
-                node_data.get('active_tasks', 0),
-                node_data.get('total_tasks', 0),
-                node_data.get('healthy', True),
-                now,
-                node_data.get('oxide_version'),
-                features_json,
-                node_data['node_id']
-            ))
-        else:
-            # Insert new node
-            conn.execute("""
-                INSERT INTO discovered_nodes (
-                    node_id, hostname, ip_address, port, services,
-                    cpu_percent, memory_percent, active_tasks, total_tasks,
-                    healthy, enabled, first_seen, last_seen,
-                    oxide_version, features
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                node_data['node_id'],
-                node_data['hostname'],
-                node_data['ip_address'],
-                node_data['port'],
-                services_json,
-                node_data.get('cpu_percent', 0.0),
-                node_data.get('memory_percent', 0.0),
-                node_data.get('active_tasks', 0),
-                node_data.get('total_tasks', 0),
-                node_data.get('healthy', True),
-                True,  # enabled by default
-                now,
-                now,
-                node_data.get('oxide_version'),
-                features_json
-            ))
+            if existing:
+                # Update existing node, preserve first_seen and enabled
+                conn.execute("""
+                    UPDATE discovered_nodes SET
+                        hostname = ?,
+                        ip_address = ?,
+                        port = ?,
+                        services = ?,
+                        cpu_percent = ?,
+                        memory_percent = ?,
+                        active_tasks = ?,
+                        total_tasks = ?,
+                        healthy = ?,
+                        last_seen = ?,
+                        oxide_version = ?,
+                        features = ?
+                    WHERE node_id = ?
+                """, (
+                    node_data['hostname'],
+                    node_data['ip_address'],
+                    node_data['port'],
+                    services_json,
+                    node_data.get('cpu_percent', 0.0),
+                    node_data.get('memory_percent', 0.0),
+                    node_data.get('active_tasks', 0),
+                    node_data.get('total_tasks', 0),
+                    node_data.get('healthy', True),
+                    now,
+                    node_data.get('oxide_version'),
+                    features_json,
+                    node_data['node_id']
+                ))
+            else:
+                # Insert new node
+                conn.execute("""
+                    INSERT INTO discovered_nodes (
+                        node_id, hostname, ip_address, port, services,
+                        cpu_percent, memory_percent, active_tasks, total_tasks,
+                        healthy, enabled, first_seen, last_seen,
+                        oxide_version, features
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    node_data['node_id'],
+                    node_data['hostname'],
+                    node_data['ip_address'],
+                    node_data['port'],
+                    services_json,
+                    node_data.get('cpu_percent', 0.0),
+                    node_data.get('memory_percent', 0.0),
+                    node_data.get('active_tasks', 0),
+                    node_data.get('total_tasks', 0),
+                    node_data.get('healthy', True),
+                    True,  # enabled by default
+                    now,
+                    now,
+                    node_data.get('oxide_version'),
+                    features_json
+                ))
 
-        conn.commit()
-        self.logger.debug(f"Upserted node: {node_data['node_id']}")
+            self.logger.debug(f"Upserted node: {node_data['node_id']}")
 
     def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -791,23 +791,22 @@ class ConfigStorageSQLite:
         Returns:
             List of node data dictionaries
         """
-        conn = self._get_connection()
+        with self._get_connection() as conn:
+            query = "SELECT * FROM discovered_nodes WHERE 1=1"
+            params = []
 
-        query = "SELECT * FROM discovered_nodes WHERE 1=1"
-        params = []
+            if enabled_only:
+                query += " AND enabled = ?"
+                params.append(True)
 
-        if enabled_only:
-            query += " AND enabled = ?"
-            params.append(True)
+            if healthy_only:
+                query += " AND healthy = ?"
+                params.append(True)
 
-        if healthy_only:
-            query += " AND healthy = ?"
-            params.append(True)
+            query += " ORDER BY last_seen DESC"
 
-        query += " ORDER BY last_seen DESC"
-
-        rows = conn.execute(query, params).fetchall()
-        return [self._node_row_to_dict(row) for row in rows]
+            rows = conn.execute(query, params).fetchall()
+            return [self._node_row_to_dict(row) for row in rows]
 
     def enable_node(self, node_id: str) -> bool:
         """
@@ -865,19 +864,18 @@ class ConfigStorageSQLite:
         Returns:
             Number of nodes removed
         """
-        conn = self._get_connection()
-        cutoff_time = time.time() - max_age_seconds
+        with self._get_connection() as conn:
+            cutoff_time = time.time() - max_age_seconds
 
-        cursor = conn.execute(
-            "DELETE FROM discovered_nodes WHERE last_seen < ?",
-            (cutoff_time,)
-        )
-        conn.commit()
+            cursor = conn.execute(
+                "DELETE FROM discovered_nodes WHERE last_seen < ?",
+                (cutoff_time,)
+            )
 
-        if cursor.rowcount > 0:
-            self.logger.info(f"Pruned {cursor.rowcount} stale nodes")
+            if cursor.rowcount > 0:
+                self.logger.info(f"Pruned {cursor.rowcount} stale nodes")
 
-        return cursor.rowcount
+            return cursor.rowcount
 
     def delete_node(self, node_id: str) -> bool:
         """

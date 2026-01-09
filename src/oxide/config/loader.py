@@ -113,6 +113,13 @@ class StorageConfig(BaseModel):
     backend: str = "sqlite"  # 'sqlite' or 'json'
 
 
+class ClusterConfig(BaseModel):
+    """Cluster coordination configuration."""
+    enabled: bool = False
+    broadcast_port: int = 8888
+    api_port: int = 8000
+
+
 class Config(BaseModel):
     """Main configuration object."""
     services: Dict[str, ServiceConfig]
@@ -121,6 +128,7 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    cluster: ClusterConfig = Field(default_factory=ClusterConfig)
 
     @field_validator("services")
     @classmethod

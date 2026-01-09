@@ -179,7 +179,7 @@ class ClusterCoordinator:
 
         # Get task counts
         task_storage = get_task_storage()
-        tasks = task_storage.get_all_tasks()
+        tasks = task_storage.list_tasks(limit=9999)
         active_tasks = len([t for t in tasks if t.get("status") == "running"])
 
         # Define supported features
@@ -258,7 +258,7 @@ class ClusterCoordinator:
 
                     # Update task counts
                     task_storage = get_task_storage()
-                    tasks = task_storage.get_all_tasks()
+                    tasks = task_storage.list_tasks(limit=9999)
                     self.local_node.active_tasks = len([t for t in tasks if t.get("status") == "running"])
                     self.local_node.total_tasks = len(tasks)
 

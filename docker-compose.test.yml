@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  oxide-node1:
+    build: .
+    container_name: oxide-node1
+    hostname: oxide-node1
+    ports:
+      - "8000:8000"     # API port
+      - "8888:8888/udp" # Discovery broadcast port
+    environment:
+      - OXIDE_NODE_ID=node1
+      - OXIDE_PORT=8000
+      - OXIDE_BROADCAST_PORT=8888
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro
+      - node1-data:/root/.oxide
+    networks:
+      - oxide-cluster
+    command: ["uv", "run", "oxide-web"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  oxide-node2:
+    build: .
+    container_name: oxide-node2
+    hostname: oxide-node2
+    ports:
+      - "8001:8000"     # API port (mapped to host 8001)
+      - "8889:8888/udp" # Discovery broadcast port
+    environment:
+      - OXIDE_NODE_ID=node2
+      - OXIDE_PORT=8000
+      - OXIDE_BROADCAST_PORT=8888
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro
+      - node2-data:/root/.oxide
+    networks:
+      - oxide-cluster
+    command: ["uv", "run", "oxide-web"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - oxide-node1
+
+  oxide-node3:
+    build: .
+    container_name: oxide-node3
+    hostname: oxide-node3
+    ports:
+      - "8002:8000"     # API port (mapped to host 8002)
+      - "8890:8888/udp" # Discovery broadcast port
+    environment:
+      - OXIDE_NODE_ID=node3
+      - OXIDE_PORT=8000
+      - OXIDE_BROADCAST_PORT=8888
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro
+      - node3-data:/root/.oxide
+    networks:
+      - oxide-cluster
+    command: ["uv", "run", "oxide-web"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - oxide-node1
+      - oxide-node2
+
+networks:
+  oxide-cluster:
+    driver: bridge
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
