@@ -182,6 +182,31 @@ class ConfigStorageSQLite:
                 )
             """)
 
+            # Discovered nodes table (for cluster discovery persistence)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS discovered_nodes (
+                    node_id TEXT PRIMARY KEY,
+                    hostname TEXT NOT NULL,
+                    ip_address TEXT NOT NULL,
+                    port INTEGER NOT NULL,
+                    services TEXT NOT NULL,  -- JSON: detailed service info with models/capabilities
+                    cpu_percent REAL,
+                    memory_percent REAL,
+                    active_tasks INTEGER DEFAULT 0,
+                    total_tasks INTEGER DEFAULT 0,
+                    healthy BOOLEAN DEFAULT 1,
+                    enabled BOOLEAN DEFAULT 1,  -- User can disable nodes from UI
+
+                    -- Discovery metadata
+                    first_seen REAL NOT NULL,
+                    last_seen REAL NOT NULL,
+                    oxide_version TEXT,
+                    features TEXT,  -- JSON array: supported features
+
+                    UNIQUE(ip_address, port)
+                )
+            """)
+
             # Configuration history table (for versioning)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS config_history (
@@ -197,6 +222,9 @@ class ConfigStorageSQLite:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_services_type ON services(type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_services_node ON services(node_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_routing_primary ON routing_rules(primary_service)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_healthy ON discovered_nodes(healthy)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_enabled ON discovered_nodes(enabled)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_last_seen ON discovered_nodes(last_seen DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_history_created ON config_history(created_at DESC)")
 
             # Initialize execution_settings with defaults if empty
@@ -629,6 +657,269 @@ class ConfigStorageSQLite:
             'timeout_seconds': row['timeout_seconds'],
             'created_at': row['created_at'],
             'updated_at': row['updated_at']
+        }
+
+    # ==================== Discovered Nodes Management ====================
+
+    def upsert_node(self, node_data: Dict[str, Any]) -> None:
+        """
+        Insert or update a discovered node.
+
+        Args:
+            node_data: Node information dictionary with keys:
+                - node_id: Unique node identifier
+                - hostname: Node hostname
+                - ip_address: Node IP address
+                - port: Node port
+                - services: Dict with detailed service info (will be JSON serialized)
+                - cpu_percent: CPU usage percentage
+                - memory_percent: Memory usage percentage
+                - active_tasks: Number of active tasks
+                - total_tasks: Total tasks processed
+                - healthy: Node health status
+                - oxide_version: Oxide version string
+                - features: List of supported features (will be JSON serialized)
+        """
+        conn = self._get_connection()
+        now = time.time()
+
+        # Serialize complex fields
+        services_json = json.dumps(node_data.get('services', {}))
+        features_json = json.dumps(node_data.get('features', []))
+
+        # Check if node already exists
+        existing = conn.execute(
+            "SELECT first_seen, enabled FROM discovered_nodes WHERE node_id = ?",
+            (node_data['node_id'],)
+        ).fetchone()
+
+        if existing:
+            # Update existing node, preserve first_seen and enabled
+            conn.execute("""
+                UPDATE discovered_nodes SET
+                    hostname = ?,
+                    ip_address = ?,
+                    port = ?,
+                    services = ?,
+                    cpu_percent = ?,
+                    memory_percent = ?,
+                    active_tasks = ?,
+                    total_tasks = ?,
+                    healthy = ?,
+                    last_seen = ?,
+                    oxide_version = ?,
+                    features = ?
+                WHERE node_id = ?
+            """, (
+                node_data['hostname'],
+                node_data['ip_address'],
+                node_data['port'],
+                services_json,
+                node_data.get('cpu_percent', 0.0),
+                node_data.get('memory_percent', 0.0),
+                node_data.get('active_tasks', 0),
+                node_data.get('total_tasks', 0),
+                node_data.get('healthy', True),
+                now,
+                node_data.get('oxide_version'),
+                features_json,
+                node_data['node_id']
+            ))
+        else:
+            # Insert new node
+            conn.execute("""
+                INSERT INTO discovered_nodes (
+                    node_id, hostname, ip_address, port, services,
+                    cpu_percent, memory_percent, active_tasks, total_tasks,
+                    healthy, enabled, first_seen, last_seen,
+                    oxide_version, features
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                node_data['node_id'],
+                node_data['hostname'],
+                node_data['ip_address'],
+                node_data['port'],
+                services_json,
+                node_data.get('cpu_percent', 0.0),
+                node_data.get('memory_percent', 0.0),
+                node_data.get('active_tasks', 0),
+                node_data.get('total_tasks', 0),
+                node_data.get('healthy', True),
+                True,  # enabled by default
+                now,
+                now,
+                node_data.get('oxide_version'),
+                features_json
+            ))
+
+        conn.commit()
+        self.logger.debug(f"Upserted node: {node_data['node_id']}")
+
+    def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a discovered node by ID.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            Node data dictionary or None if not found
+        """
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT * FROM discovered_nodes WHERE node_id = ?",
+            (node_id,)
+        ).fetchone()
+
+        if not row:
+            return None
+
+        return self._node_row_to_dict(row)
+
+    def list_nodes(
+        self,
+        enabled_only: bool = False,
+        healthy_only: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        List all discovered nodes.
+
+        Args:
+            enabled_only: Only return enabled nodes
+            healthy_only: Only return healthy nodes
+
+        Returns:
+            List of node data dictionaries
+        """
+        conn = self._get_connection()
+
+        query = "SELECT * FROM discovered_nodes WHERE 1=1"
+        params = []
+
+        if enabled_only:
+            query += " AND enabled = ?"
+            params.append(True)
+
+        if healthy_only:
+            query += " AND healthy = ?"
+            params.append(True)
+
+        query += " ORDER BY last_seen DESC"
+
+        rows = conn.execute(query, params).fetchall()
+        return [self._node_row_to_dict(row) for row in rows]
+
+    def enable_node(self, node_id: str) -> bool:
+        """
+        Enable a discovered node.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            True if node was found and enabled, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "UPDATE discovered_nodes SET enabled = ? WHERE node_id = ?",
+            (True, node_id)
+        )
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info(f"Enabled node: {node_id}")
+            return True
+
+        return False
+
+    def disable_node(self, node_id: str) -> bool:
+        """
+        Disable a discovered node.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            True if node was found and disabled, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "UPDATE discovered_nodes SET enabled = ? WHERE node_id = ?",
+            (False, node_id)
+        )
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info(f"Disabled node: {node_id}")
+            return True
+
+        return False
+
+    def prune_stale_nodes(self, max_age_seconds: int = 300) -> int:
+        """
+        Remove nodes that haven't been seen recently.
+
+        Args:
+            max_age_seconds: Maximum age in seconds (default: 5 minutes)
+
+        Returns:
+            Number of nodes removed
+        """
+        conn = self._get_connection()
+        cutoff_time = time.time() - max_age_seconds
+
+        cursor = conn.execute(
+            "DELETE FROM discovered_nodes WHERE last_seen < ?",
+            (cutoff_time,)
+        )
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info(f"Pruned {cursor.rowcount} stale nodes")
+
+        return cursor.rowcount
+
+    def delete_node(self, node_id: str) -> bool:
+        """
+        Delete a discovered node.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            True if node was found and deleted, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "DELETE FROM discovered_nodes WHERE node_id = ?",
+            (node_id,)
+        )
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info(f"Deleted node: {node_id}")
+            return True
+
+        return False
+
+    def _node_row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to node dictionary."""
+        return {
+            'node_id': row['node_id'],
+            'hostname': row['hostname'],
+            'ip_address': row['ip_address'],
+            'port': row['port'],
+            'services': json.loads(row['services']) if row['services'] else {},
+            'cpu_percent': row['cpu_percent'],
+            'memory_percent': row['memory_percent'],
+            'active_tasks': row['active_tasks'],
+            'total_tasks': row['total_tasks'],
+            'healthy': bool(row['healthy']),
+            'enabled': bool(row['enabled']),
+            'first_seen': row['first_seen'],
+            'last_seen': row['last_seen'],
+            'oxide_version': row['oxide_version'],
+            'features': json.loads(row['features']) if row['features'] else []
         }
 
     def close(self):

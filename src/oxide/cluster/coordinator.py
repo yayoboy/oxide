@@ -17,6 +17,7 @@ from datetime import datetime
 
 from ..utils.logging import get_logger
 from ..utils.task_storage import get_task_storage
+from ..utils.config_storage_sqlite import ConfigStorageSQLite
 
 logger = get_logger(__name__)
 
@@ -28,13 +29,21 @@ class NodeInfo:
     hostname: str
     ip_address: str
     port: int
-    services: List[str]  # Available LLM services
+    services: Dict[str, Dict[str, Any]]  # Service name -> detailed info (models, capabilities, etc.)
     cpu_percent: float
     memory_percent: float
     active_tasks: int
     total_tasks: int
     last_seen: float
     healthy: bool = True
+    enabled: bool = True  # Can be disabled from UI
+    oxide_version: Optional[str] = None
+    features: List[str] = None  # Supported features
+
+    def __post_init__(self):
+        """Initialize default values"""
+        if self.features is None:
+            self.features = []
 
 
 class ClusterCoordinator:
@@ -79,6 +88,9 @@ class ClusterCoordinator:
         self._broadcast_task: Optional[asyncio.Task] = None
         self._health_check_task: Optional[asyncio.Task] = None
 
+        # SQLite persistence for discovered nodes
+        self.config_storage = ConfigStorageSQLite()
+
         self.logger.info(f"Cluster coordinator initialized: {node_id}")
 
     async def start(self, orchestrator):
@@ -90,6 +102,9 @@ class ClusterCoordinator:
         """
         # Create local node info
         self.local_node = await self._create_local_node_info(orchestrator)
+
+        # Load previously discovered nodes from database
+        await self._load_persisted_nodes()
 
         # Start background tasks
         self._discovery_task = asyncio.create_task(self._listen_for_nodes())
@@ -110,7 +125,7 @@ class ClusterCoordinator:
         self.logger.info("Cluster coordinator stopped")
 
     async def _create_local_node_info(self, orchestrator) -> NodeInfo:
-        """Create NodeInfo for local instance"""
+        """Create NodeInfo for local instance with detailed service information"""
         import psutil
 
         # Get local IP
@@ -123,8 +138,40 @@ class ClusterCoordinator:
         finally:
             s.close()
 
-        # Get available services
-        services = list(orchestrator.adapters.keys()) if orchestrator else []
+        # Get detailed service information
+        services = {}
+        if orchestrator:
+            for service_name, adapter in orchestrator.adapters.items():
+                service_info = {
+                    "type": getattr(adapter, "adapter_type", "unknown"),
+                    "models": [],
+                    "capabilities": [],
+                    "base_url": None
+                }
+
+                # Try to get models list
+                if hasattr(adapter, "get_available_models"):
+                    try:
+                        service_info["models"] = await adapter.get_available_models()
+                    except:
+                        pass
+
+                # Get capabilities from config if available
+                if hasattr(adapter, "config"):
+                    service_info["capabilities"] = getattr(adapter.config, "capabilities", [])
+
+                # Get base URL for HTTP adapters
+                if hasattr(adapter, "base_url"):
+                    service_info["base_url"] = adapter.base_url
+
+                services[service_name] = service_info
+
+        # Get Oxide version
+        try:
+            import importlib.metadata
+            oxide_version = importlib.metadata.version("oxide")
+        except:
+            oxide_version = "unknown"
 
         # Get system metrics
         cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -134,6 +181,14 @@ class ClusterCoordinator:
         task_storage = get_task_storage()
         tasks = task_storage.get_all_tasks()
         active_tasks = len([t for t in tasks if t.get("status") == "running"])
+
+        # Define supported features
+        features = [
+            "cluster_discovery",
+            "remote_execution",
+            "load_balancing",
+            "persistent_discovery"
+        ]
 
         return NodeInfo(
             node_id=self.node_id,
@@ -146,8 +201,46 @@ class ClusterCoordinator:
             active_tasks=active_tasks,
             total_tasks=len(tasks),
             last_seen=time.time(),
-            healthy=True
+            healthy=True,
+            oxide_version=oxide_version,
+            features=features
         )
+
+    async def _load_persisted_nodes(self):
+        """Load previously discovered nodes from database"""
+        try:
+            persisted_nodes = self.config_storage.list_nodes(enabled_only=True)
+
+            for node_data in persisted_nodes:
+                # Skip ourselves
+                if node_data['node_id'] == self.node_id:
+                    continue
+
+                # Create NodeInfo from persisted data
+                node = NodeInfo(
+                    node_id=node_data['node_id'],
+                    hostname=node_data['hostname'],
+                    ip_address=node_data['ip_address'],
+                    port=node_data['port'],
+                    services=node_data['services'],
+                    cpu_percent=node_data['cpu_percent'],
+                    memory_percent=node_data['memory_percent'],
+                    active_tasks=node_data['active_tasks'],
+                    total_tasks=node_data['total_tasks'],
+                    last_seen=node_data['last_seen'],
+                    healthy=node_data['healthy'],
+                    enabled=node_data['enabled'],
+                    oxide_version=node_data.get('oxide_version'),
+                    features=node_data.get('features', [])
+                )
+
+                self.nodes[node.node_id] = node
+                self.logger.info(f"Loaded persisted node: {node.hostname} ({node.ip_address})")
+
+            if persisted_nodes:
+                self.logger.info(f"Loaded {len(persisted_nodes)} persisted nodes from database")
+        except Exception as e:
+            self.logger.warning(f"Failed to load persisted nodes: {e}")
 
     async def _broadcast_presence(self):
         """Broadcast local node presence to LAN"""
@@ -210,9 +303,15 @@ class ClusterCoordinator:
                         if node_id == self.node_id:
                             continue
 
-                        # Update or add node
+                        # Update or add node in memory
                         node = NodeInfo(**node_data)
                         self.nodes[node_id] = node
+
+                        # Persist to database
+                        try:
+                            self.config_storage.upsert_node(node_data)
+                        except Exception as e:
+                            self.logger.warning(f"Failed to persist node {node.hostname}: {e}")
 
                         self.logger.debug(f"Discovered node: {node.hostname} ({node.ip_address})")
 
@@ -229,7 +328,7 @@ class ClusterCoordinator:
             sock.close()
 
     async def _monitor_node_health(self):
-        """Monitor health of discovered nodes"""
+        """Monitor health of discovered nodes and prune stale entries"""
         try:
             while True:
                 current_time = time.time()
@@ -246,6 +345,15 @@ class ClusterCoordinator:
                         if current_time - node.last_seen > timeout * 2:
                             self.logger.info(f"Removing offline node: {node.hostname}")
                             del self.nodes[node_id]
+
+                # Prune stale nodes from database (6 missed broadcasts)
+                try:
+                    max_age_seconds = self.discovery_interval * 6
+                    pruned_count = self.config_storage.prune_stale_nodes(max_age_seconds)
+                    if pruned_count > 0:
+                        self.logger.info(f"Pruned {pruned_count} stale nodes from database")
+                except Exception as e:
+                    self.logger.warning(f"Failed to prune stale nodes from database: {e}")
 
                 await asyncio.sleep(self.discovery_interval)
 
@@ -285,7 +393,7 @@ class ClusterCoordinator:
 
         # Include remote nodes
         for node in self.nodes.values():
-            if not node.healthy:
+            if not node.healthy or not node.enabled:
                 continue
             if required_service and required_service not in node.services:
                 continue
@@ -354,6 +462,68 @@ class ClusterCoordinator:
         except Exception as e:
             self.logger.error(f"Failed to execute task on {node.hostname}: {e}")
             return {"error": str(e), "status": "failed"}
+
+    def enable_node(self, node_id: str) -> bool:
+        """
+        Enable a discovered node.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Enable in database
+            if not self.config_storage.enable_node(node_id):
+                return False
+
+            # Enable in memory if present
+            if node_id in self.nodes:
+                self.nodes[node_id].enabled = True
+
+            self.logger.info(f"Enabled node: {node_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to enable node {node_id}: {e}")
+            return False
+
+    def disable_node(self, node_id: str) -> bool:
+        """
+        Disable a discovered node.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Disable in database
+            if not self.config_storage.disable_node(node_id):
+                return False
+
+            # Disable in memory if present
+            if node_id in self.nodes:
+                self.nodes[node_id].enabled = False
+
+            self.logger.info(f"Disabled node: {node_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to disable node {node_id}: {e}")
+            return False
+
+    def get_all_nodes(self) -> List[NodeInfo]:
+        """
+        Get all discovered nodes (including disabled ones).
+
+        Returns:
+            List of all NodeInfo objects
+        """
+        nodes = list(self.nodes.values())
+        if self.local_node:
+            nodes.insert(0, self.local_node)
+        return nodes
 
 
 # Global coordinator instance

@@ -216,6 +216,166 @@ async def get_node_info(node_id: str):
     return node
 
 
+@router.get("/health")
+async def cluster_health():
+    """
+    Health check endpoint for cluster nodes.
+
+    This endpoint is used by other Oxide nodes to verify connectivity.
+    Returns basic node information and health status.
+    """
+    coordinator = get_cluster_coordinator()
+
+    if not coordinator or not coordinator.local_node:
+        return {
+            "status": "unhealthy",
+            "message": "Cluster coordinator not initialized"
+        }
+
+    return {
+        "status": "healthy",
+        "node_id": coordinator.node_id,
+        "hostname": coordinator.local_node.hostname,
+        "services": list(coordinator.local_node.services.keys()),
+        "cpu_percent": coordinator.local_node.cpu_percent,
+        "memory_percent": coordinator.local_node.memory_percent,
+        "active_tasks": coordinator.local_node.active_tasks,
+        "oxide_version": coordinator.local_node.oxide_version
+    }
+
+
+@router.post("/nodes/{node_id}/enable")
+async def enable_node(node_id: str):
+    """
+    Enable a discovered node.
+
+    Args:
+        node_id: Node identifier
+
+    Returns:
+        Success message or error
+    """
+    coordinator = get_cluster_coordinator()
+
+    if not coordinator:
+        raise HTTPException(
+            status_code=503,
+            detail="Cluster coordination not enabled"
+        )
+
+    success = coordinator.enable_node(node_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node '{node_id}' not found"
+        )
+
+    return {
+        "status": "success",
+        "node_id": node_id,
+        "enabled": True,
+        "message": f"Node '{node_id}' enabled successfully"
+    }
+
+
+@router.post("/nodes/{node_id}/disable")
+async def disable_node(node_id: str):
+    """
+    Disable a discovered node.
+
+    Args:
+        node_id: Node identifier
+
+    Returns:
+        Success message or error
+    """
+    coordinator = get_cluster_coordinator()
+
+    if not coordinator:
+        raise HTTPException(
+            status_code=503,
+            detail="Cluster coordination not enabled"
+        )
+
+    success = coordinator.disable_node(node_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node '{node_id}' not found"
+        )
+
+    return {
+        "status": "success",
+        "node_id": node_id,
+        "enabled": False,
+        "message": f"Node '{node_id}' disabled successfully"
+    }
+
+
+@router.get("/services-matrix")
+async def get_services_matrix():
+    """
+    Get service availability matrix across all nodes.
+
+    Returns a matrix showing which services are available on which nodes,
+    useful for understanding cluster capabilities and load distribution.
+    """
+    coordinator = get_cluster_coordinator()
+
+    if not coordinator:
+        raise HTTPException(
+            status_code=503,
+            detail="Cluster coordination not enabled"
+        )
+
+    # Collect all nodes
+    all_nodes = coordinator.get_all_nodes()
+
+    # Build services matrix
+    matrix = {}
+    for node in all_nodes:
+        is_local = node.node_id == coordinator.node_id
+        node_info = {
+            "hostname": node.hostname,
+            "ip_address": node.ip_address,
+            "port": node.port,
+            "healthy": node.healthy,
+            "enabled": node.enabled,
+            "local": is_local,
+            "cpu_percent": node.cpu_percent,
+            "memory_percent": node.memory_percent,
+            "active_tasks": node.active_tasks
+        }
+
+        # Add services with details
+        for service_name, service_details in node.services.items():
+            if service_name not in matrix:
+                matrix[service_name] = {
+                    "nodes": [],
+                    "total_nodes": 0,
+                    "healthy_nodes": 0,
+                    "enabled_nodes": 0
+                }
+
+            matrix[service_name]["nodes"].append({
+                **node_info,
+                "service_details": service_details
+            })
+            matrix[service_name]["total_nodes"] += 1
+            if node.healthy:
+                matrix[service_name]["healthy_nodes"] += 1
+            if node.enabled:
+                matrix[service_name]["enabled_nodes"] += 1
+
+    return {
+        "services": matrix,
+        "total_nodes": len(all_nodes),
+        "total_services": len(matrix)
+    }
+
+
 @router.post("/nodes/{node_id}/ping")
 async def ping_node(node_id: str):
     """
@@ -252,7 +412,7 @@ async def ping_node(node_id: str):
     import aiohttp
     import time
 
-    url = f"http://{node.ip_address}:{node.port}/health"
+    url = f"http://{node.ip_address}:{node.port}/api/cluster/health"
 
     try:
         start = time.time()
