@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.oxide.web.backend.routes.config import router
-from src.oxide.config.loader import Config, ServiceConfig, RoutingRuleConfig, ServiceType
+from oxide.web.backend.routes.config import router
+from oxide.config.loader import Config, ServiceConfig, RoutingRuleConfig, ServiceType
 
 
 @pytest.fixture
@@ -372,7 +372,7 @@ class TestReloadConfiguration:
 
     def test_reload_config_error(self, client, mock_hot_reload_manager):
         """Test reload with configuration error"""
-        from src.oxide.config.loader import ConfigError
+        from oxide.config.loader import ConfigError
 
         with patch('src.oxide.web.backend.routes.config.get_hot_reload_manager', return_value=mock_hot_reload_manager):
             mock_hot_reload_manager.reload.side_effect = ConfigError("Invalid YAML")

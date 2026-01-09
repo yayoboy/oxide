@@ -18,8 +18,9 @@ class RouterDecision:
     """Result of routing decision."""
     primary_service: str
     fallback_services: List[str]
-    execution_mode: str  # "single" or "parallel"
+    execution_mode: str  # "single", "parallel", or "broadcast_all"
     timeout_seconds: Optional[int] = None
+    broadcast_services: Optional[List[str]] = None  # For broadcast_all mode
 
 
 class TaskRouter:
@@ -186,6 +187,49 @@ class TaskRouter:
 
         # If no health checker, assume available if enabled
         return True
+
+    async def route_broadcast_all(self, task_info: TaskInfo) -> RouterDecision:
+        """
+        Create routing decision to broadcast task to ALL available LLMs.
+
+        This mode executes the same task on all enabled and healthy services
+        simultaneously, allowing real-time comparison of responses.
+
+        Args:
+            task_info: Classified task information
+
+        Returns:
+            RouterDecision with broadcast_all mode and list of all available services
+
+        Raises:
+            NoServiceAvailableError: If no services are available
+        """
+        # Get all available services
+        available_services = []
+
+        for service_name in self.config.services.keys():
+            if await self._is_service_available(service_name):
+                available_services.append(service_name)
+
+        if not available_services:
+            raise NoServiceAvailableError("No services available for broadcast")
+
+        self.logger.info(
+            f"Broadcasting task to {len(available_services)} services: "
+            f"{', '.join(available_services)}"
+        )
+
+        # Primary is the first available (for backwards compatibility)
+        # But broadcast_services contains all
+        decision = RouterDecision(
+            primary_service=available_services[0],
+            fallback_services=[],
+            execution_mode="broadcast_all",
+            timeout_seconds=self.config.execution.timeout_seconds,
+            broadcast_services=available_services
+        )
+
+        return decision
 
     def get_routing_rules_summary(self) -> Dict[str, Dict[str, Any]]:
         """

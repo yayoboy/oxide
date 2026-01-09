@@ -30,6 +30,8 @@ export const tasksAPI = {
   get: (taskId) => client.get(`/tasks/${taskId}/`),
   execute: (prompt, files = null, preferences = null) =>
     client.post('/tasks/execute/', { prompt, files, preferences }),
+  broadcast: (prompt, files = null, preferences = null) =>
+    client.post('/tasks/broadcast/', { prompt, files, preferences }),
   delete: (taskId) => client.delete(`/tasks/${taskId}/`),
   clear: (status = null) => client.post('/tasks/clear/', { status }),
 };

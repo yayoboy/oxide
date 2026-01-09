@@ -120,18 +120,32 @@ const useStore = create(
       }),
       {
         name: 'oxide-storage', // localStorage key
+        version: 3, // Increment this to invalidate old cache
         partialize: (state) => ({
-          // Persist user preferences and UI state
+          // ONLY persist user preferences and UI state
+          // DO NOT persist API data (services, metrics, tasks) to avoid cache issues
           preferences: state.preferences,
           selectedTab: state.selectedTab,
           sidebarOpen: state.sidebarOpen,
-
-          // Persist critical data for offline/reload scenarios
-          metrics: state.metrics,
-          services: state.services,
-          tasks: state.tasks,
-          machines: state.machines,
         }),
+        migrate: (persistedState, version) => {
+          // Clear incompatible cache from old versions
+          if (version < 3) {
+            console.log('🔄 Migrating store from version', version, 'to 3, clearing all cached data');
+            // Only keep UI preferences, clear everything else
+            return {
+              preferences: persistedState?.preferences || {
+                compactView: false,
+                autoRefresh: true,
+                showSystemMetrics: true,
+                notificationsEnabled: true,
+              },
+              selectedTab: 'dashboard',
+              sidebarOpen: true,
+            };
+          }
+          return persistedState;
+        },
       }
     ),
     { name: 'Oxide Store' } // Redux DevTools name

@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.oxide.utils.routing_rules import RoutingRulesManager, get_routing_rules_manager
+from oxide.utils.routing_rules import RoutingRulesManager, get_routing_rules_manager
 
 
 @pytest.fixture

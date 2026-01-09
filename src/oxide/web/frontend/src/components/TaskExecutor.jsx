@@ -1,8 +1,8 @@
 /**
  * Task Executor Component
- * Allows users to create and execute tasks with manual service selection
+ * Allows users to create and execute tasks with manual service selection or broadcast to all LLMs
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -12,6 +12,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { FormField, Select, Textarea } from './ui/Input';
+import MultiResponseViewer from './MultiResponseViewer';
 
 const TaskExecutor = ({ onTaskCompleted }) => {
   const [prompt, setPrompt] = useState('');
@@ -20,6 +21,10 @@ const TaskExecutor = ({ onTaskCompleted }) => {
   const [currentTaskId, setCurrentTaskId] = useState(null);
   const [result, setResult] = useState('');
   const [error, setError] = useState(null);
+  const [isBroadcastMode, setIsBroadcastMode] = useState(false);
+
+  // Ref for MultiResponseViewer to handle broadcast chunks
+  const multiResponseRef = useRef(null);
 
   const { services, loading: servicesLoading } = useServices();
   const { lastMessage } = useWebSocket();
@@ -28,9 +33,18 @@ const TaskExecutor = ({ onTaskCompleted }) => {
   useEffect(() => {
     if (!lastMessage || !currentTaskId) return;
 
-    if (lastMessage.type === 'task_progress' && lastMessage.task_id === currentTaskId) {
+    // Handle broadcast mode chunks
+    if (lastMessage.type === 'task_broadcast_chunk' && lastMessage.task_id === currentTaskId) {
+      if (multiResponseRef.current) {
+        multiResponseRef.current.handleBroadcastChunk(lastMessage);
+      }
+    }
+    // Handle standard single-service progress
+    else if (lastMessage.type === 'task_progress' && lastMessage.task_id === currentTaskId) {
       setResult((prev) => prev + lastMessage.chunk);
-    } else if (lastMessage.type === 'task_complete' && lastMessage.task_id === currentTaskId) {
+    }
+    // Handle task completion
+    else if (lastMessage.type === 'task_complete' && lastMessage.task_id === currentTaskId) {
       setIsExecuting(false);
       if (lastMessage.success) {
         if (onTaskCompleted) onTaskCompleted();
@@ -46,18 +60,29 @@ const TaskExecutor = ({ onTaskCompleted }) => {
       return;
     }
 
+    const useBroadcast = selectedService === 'broadcast_all';
+
     setIsExecuting(true);
     setResult('');
     setError(null);
     setCurrentTaskId(null);
+    setIsBroadcastMode(useBroadcast);
 
     try {
       const preferences = {};
-      if (selectedService !== 'auto') {
-        preferences.preferred_service = selectedService;
+
+      let response;
+      if (useBroadcast) {
+        // Use broadcast endpoint
+        response = await tasksAPI.broadcast(prompt, null, preferences);
+      } else {
+        // Use standard execute endpoint
+        if (selectedService !== 'auto') {
+          preferences.preferred_service = selectedService;
+        }
+        response = await tasksAPI.execute(prompt, null, preferences);
       }
 
-      const response = await tasksAPI.execute(prompt, null, preferences);
       setCurrentTaskId(response.data.task_id);
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
@@ -71,6 +96,7 @@ const TaskExecutor = ({ onTaskCompleted }) => {
     setError(null);
     setCurrentTaskId(null);
     setIsExecuting(false);
+    setIsBroadcastMode(false);
   };
 
   const healthyServices = services?.services
@@ -91,10 +117,12 @@ const TaskExecutor = ({ onTaskCompleted }) => {
       <CardContent className="space-y-4">
         {/* Service Selection */}
         <FormField
-          label="LLM Service"
+          label="Execution Mode"
           description={
             selectedService === 'auto'
               ? 'Oxide will automatically select the best service based on your query'
+              : selectedService === 'broadcast_all'
+              ? 'Task will be broadcast to ALL available LLMs for real-time comparison'
               : `Task will be routed to ${selectedService}`
           }
         >
@@ -104,6 +132,7 @@ const TaskExecutor = ({ onTaskCompleted }) => {
             disabled={isExecuting || servicesLoading}
           >
             <option value="auto">🤖 Auto (Intelligent Routing)</option>
+            <option value="broadcast_all">🎯 Broadcast All (Compare All LLMs)</option>
             <optgroup label="Available Services">
               {healthyServices.map((serviceName) => (
                 <option key={serviceName} value={serviceName}>
@@ -167,8 +196,22 @@ const TaskExecutor = ({ onTaskCompleted }) => {
           </div>
         )}
 
-        {/* Result Display */}
-        {(result || isExecuting) && (
+        {/* Result Display - Broadcast Mode */}
+        {isBroadcastMode && currentTaskId && (
+          <div className="animate-slide-up">
+            <MultiResponseViewer
+              ref={multiResponseRef}
+              taskId={currentTaskId}
+              onAllCompleted={() => {
+                setIsExecuting(false);
+                if (onTaskCompleted) onTaskCompleted();
+              }}
+            />
+          </div>
+        )}
+
+        {/* Result Display - Single Service Mode */}
+        {!isBroadcastMode && (result || isExecuting) && (
           <div className="space-y-2 animate-slide-up">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gh-fg-DEFAULT">Result</span>

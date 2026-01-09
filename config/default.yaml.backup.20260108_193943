@@ -1,0 +1,159 @@
+services:
+  gemini:
+    type: cli
+    enabled: true
+    executable: gemini
+    max_context_tokens: 2000000
+    capabilities:
+    - codebase_analysis
+    - architecture_design
+    - multi_file_context
+  qwen:
+    type: cli
+    enabled: true
+    executable: qwen
+    max_context_tokens: 32000
+    capabilities:
+    - code_review
+    - code_generation
+    - debugging
+    - refactoring
+  ollama_local:
+    type: http
+    enabled: true
+    base_url: http://localhost:11434
+    api_type: ollama
+    default_model: qwen2.5-coder:7b
+    models:
+    - qwen2.5-coder:7b
+    - qwen2.5-coder:14b
+    - qwen3-coder:latest
+    capabilities:
+    - quick_query
+    - code_generation
+    - documentation
+  ollama_remote:
+    type: http
+    enabled: true
+    base_url: http://192.168.1.46:11434
+    api_type: ollama
+    capabilities:
+    - parallel_processing
+    - code_generation
+  lmstudio:
+    type: http
+    enabled: true
+    base_url: http://192.168.1.33:1234
+    api_type: openai_compatible
+  openrouter:
+    type: http
+    enabled: true
+    base_url: https://openrouter.ai/api/v1
+    api_type: openai_compatible
+    default_model: meta-llama/llama-3.2-3b-instruct:free
+    use_free_only: true
+    preferred_models:
+    - meta-llama/llama-3.2-3b-instruct:free
+    - mistralai/mistral-7b-instruct:free
+    - google/gemini-flash-1.5-8b-exp:free
+    - qwen/qwen-2.5-7b-instruct:free
+    - nousresearch/hermes-3-llama-3.1-405b:free
+    fallback_models:
+    - meta-llama/llama-3.1-8b-instruct:free
+    - google/gemini-flash-1.5:free
+    - microsoft/phi-3-medium-128k-instruct:free
+    site_url: https://github.com/oxide-ai/oxide
+    site_name: Oxide LLM Orchestrator
+    max_retries: 3
+    retry_delay: 2
+    capabilities:
+    - code_generation
+    - code_review
+    - quick_query
+    - documentation
+    - general_purpose
+    - debugging
+    - refactoring
+    api_key: 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
+routing_rules:
+  codebase_analysis:
+    primary: gemini
+    fallback:
+    - qwen
+    - openrouter
+    - ollama_local
+    parallel_threshold_files: 20
+    timeout_seconds: 180
+  code_review:
+    primary: qwen
+    fallback:
+    - openrouter
+    - ollama_local
+    - ollama_remote
+    timeout_seconds: 60
+  code_generation:
+    primary: qwen
+    fallback:
+    - openrouter
+    - ollama_local
+    timeout_seconds: 45
+  quick_query:
+    primary: ollama_local
+    fallback:
+    - openrouter
+    - ollama_remote
+    - lmstudio
+    timeout_seconds: 10
+  general_purpose:
+    primary: openrouter
+    fallback:
+    - qwen
+    - ollama_local
+    timeout_seconds: 60
+  architecture_design:
+    primary: gemini
+    fallback:
+    - qwen
+    - openrouter
+    timeout_seconds: 120
+  debugging:
+    primary: qwen
+    fallback:
+    - openrouter
+    - ollama_local
+    - gemini
+    timeout_seconds: 60
+  documentation:
+    primary: ollama_local
+    fallback:
+    - openrouter
+    - qwen
+    - gemini
+    timeout_seconds: 30
+  refactoring:
+    primary: qwen
+    fallback:
+    - openrouter
+    - ollama_local
+    - ollama_remote
+    timeout_seconds: 60
+execution:
+  max_parallel_workers: 4
+  timeout_seconds: 120
+  streaming: true
+  retry_on_failure: true
+  max_retries: 5
+logging:
+  level: INFO
+  file: /tmp/oxide.log
+  console: true
+security:
+  allowed_directories:
+  - ~/Documents
+  - ~/Projects
+  - ~/Downloads
+  - /tmp
+  - /workspace
+  path_validation_enabled: true
+storage:
+  backend: sqlite

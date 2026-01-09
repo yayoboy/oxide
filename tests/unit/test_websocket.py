@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from fastapi import WebSocket
 
-from src.oxide.web.backend.websocket import WebSocketManager
+from oxide.web.backend.websocket import WebSocketManager
 
 
 @pytest.fixture

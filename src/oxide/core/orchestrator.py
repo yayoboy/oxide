@@ -195,6 +195,7 @@ class Orchestrator:
             # Check for preference overrides
             preferred_service = preferences.get("preferred_service")
             timeout_override = preferences.get("timeout")
+            broadcast_all = preferences.get("broadcast_all", False)
 
             # 1. Classify task (always needed for TaskInfo)
             task_info = self.classifier.classify(prompt, files)
@@ -222,7 +223,22 @@ class Orchestrator:
                     enhanced_prompt = f"{context_str}\n\n{prompt}"
                     self.logger.info(f"Enhanced prompt with {len(relevant_context)} context messages")
 
-            if preferred_service:
+            if broadcast_all:
+                # Use broadcast_all routing mode
+                self.logger.info("Using broadcast_all routing mode (execute on ALL services)")
+                decision = await self.router.route_broadcast_all(task_info)
+
+                # Apply timeout override if provided
+                if timeout_override:
+                    decision.timeout_seconds = timeout_override
+
+                # Update task with broadcast services
+                self.task_storage.update_task(
+                    task_id,
+                    service=", ".join(decision.broadcast_services)
+                )
+
+            elif preferred_service:
                 # Direct routing to preferred service
                 self.logger.info(f"Using preferred service: {preferred_service}")
 
@@ -269,12 +285,84 @@ class Orchestrator:
             # 3. Execute based on execution mode
             response_chunks = []
 
-            if decision.execution_mode == "parallel" and files and len(files) > 1:
+            if decision.execution_mode == "broadcast_all":
+                # NEW: Broadcast to ALL available LLMs simultaneously
+                self.logger.info(
+                    f"Broadcasting to {len(decision.broadcast_services)} services: "
+                    f"{', '.join(decision.broadcast_services)}"
+                )
+
+                # Update task with broadcast execution mode
+                self.task_storage.update_task(task_id, execution_mode="broadcast_all")
+
+                # Track results per service
+                import json
+                service_responses = {}  # {service_name: [chunks]}
+                service_chunks_count = {}  # {service_name: count}
+
+                # Execute on all services simultaneously and merge streams
+                async for chunk_data in self._execute_broadcast_all(
+                    decision.broadcast_services,
+                    enhanced_prompt,
+                    files,
+                    decision.timeout_seconds,
+                    task_id
+                ):
+                    # Yield chunks with service identifier
+                    # Format: {"service": "gemini", "chunk": "text...", "done": false}
+                    yield chunk_data
+                    response_chunks.append(chunk_data)
+
+                    # Parse and track per-service responses
+                    try:
+                        chunk_obj = json.loads(chunk_data)
+                        service_name = chunk_obj.get("service")
+                        chunk_text = chunk_obj.get("chunk", "")
+                        is_done = chunk_obj.get("done", False)
+                        error = chunk_obj.get("error")
+
+                        if service_name:
+                            # Initialize tracking for this service
+                            if service_name not in service_responses:
+                                service_responses[service_name] = []
+                                service_chunks_count[service_name] = 0
+
+                            # Append chunk
+                            if chunk_text:
+                                service_responses[service_name].append(chunk_text)
+
+                            # Count chunks
+                            if chunk_text or is_done:
+                                service_chunks_count[service_name] += 1
+
+                            # Store final result when service completes
+                            if is_done:
+                                result_text = "".join(service_responses[service_name])
+                                self.task_storage.add_broadcast_result(
+                                    task_id=task_id,
+                                    service=service_name,
+                                    result=result_text if not error else None,
+                                    error=error,
+                                    chunks=service_chunks_count[service_name]
+                                )
+                                self.logger.info(
+                                    f"Stored broadcast result for {service_name}: "
+                                    f"{len(result_text)} chars, {service_chunks_count[service_name]} chunks"
+                                )
+
+                    except json.JSONDecodeError:
+                        self.logger.warning(f"Failed to parse broadcast chunk: {chunk_data[:100]}")
+                        continue
+
+            elif decision.execution_mode == "parallel" and files and len(files) > 1:
                 # Use parallel execution for large file sets
                 self.logger.info(
                     f"Using parallel execution: {len(files)} files across "
                     f"{len([decision.primary_service] + decision.fallback_services)} services"
                 )
+
+                # Update task with parallel execution mode
+                self.task_storage.update_task(task_id, execution_mode="parallel")
 
                 # Get available services (primary + fallbacks)
                 services = [decision.primary_service] + decision.fallback_services
@@ -294,6 +382,9 @@ class Orchestrator:
 
             else:
                 # Use standard serial execution with retries
+                # Update task with single execution mode
+                self.task_storage.update_task(task_id, execution_mode="single")
+
                 async for chunk in self._execute_with_retry(
                     decision,
                     enhanced_prompt,
@@ -474,6 +565,141 @@ class Orchestrator:
             raise ExecutionError(f"All services failed. Last error: {last_error}")
         else:
             raise NoServiceAvailableError(task_info.task_type.value)
+
+    async def _execute_broadcast_all(
+        self,
+        services: List[str],
+        prompt: str,
+        files: Optional[List[str]],
+        timeout_seconds: int,
+        task_id: str
+    ) -> AsyncIterator[str]:
+        """
+        Execute task on ALL services simultaneously and stream all responses.
+
+        This broadcasts the same prompt to all available LLM services in parallel,
+        allowing real-time comparison of responses.
+
+        Args:
+            services: List of service names to broadcast to
+            prompt: Task prompt
+            files: Optional file paths
+            timeout_seconds: Execution timeout
+            task_id: Task identifier for tracking
+
+        Yields:
+            JSON-formatted chunks: {"service": "name", "chunk": "text", "done": false, "timestamp": float}
+        """
+        import json
+        import asyncio
+        from asyncio import Queue
+
+        # Queue to collect chunks from all services
+        chunk_queue: Queue = Queue()
+
+        # Track active tasks
+        active_tasks = {}
+
+        async def execute_on_service(service_name: str):
+            """Execute on a single service and push chunks to queue."""
+            try:
+                adapter = self.adapters.get(service_name)
+                if not adapter:
+                    self.logger.warning(f"Adapter not found for broadcast: {service_name}")
+                    # Send error chunk
+                    error_chunk = {
+                        "service": service_name,
+                        "chunk": "",
+                        "done": True,
+                        "error": "Adapter not found",
+                        "timestamp": time.time()
+                    }
+                    await chunk_queue.put(json.dumps(error_chunk))
+                    return
+
+                self.logger.info(f"Broadcasting to {service_name}")
+
+                # Execute and stream chunks
+                chunk_count = 0
+                async for chunk in adapter.execute(
+                    prompt=prompt,
+                    files=files,
+                    timeout=timeout_seconds
+                ):
+                    chunk_count += 1
+                    chunk_data = {
+                        "service": service_name,
+                        "chunk": chunk,
+                        "done": False,
+                        "timestamp": time.time()
+                    }
+                    await chunk_queue.put(json.dumps(chunk_data))
+
+                # Send completion marker
+                done_chunk = {
+                    "service": service_name,
+                    "chunk": "",
+                    "done": True,
+                    "timestamp": time.time(),
+                    "total_chunks": chunk_count
+                }
+                await chunk_queue.put(json.dumps(done_chunk))
+
+                self.logger.info(f"Broadcast to {service_name} completed ({chunk_count} chunks)")
+
+            except Exception as e:
+                self.logger.error(f"Broadcast to {service_name} failed: {e}")
+                # Send error chunk
+                error_chunk = {
+                    "service": service_name,
+                    "chunk": "",
+                    "done": True,
+                    "error": str(e),
+                    "timestamp": time.time()
+                }
+                await chunk_queue.put(json.dumps(error_chunk))
+
+        # Start all service executions in parallel
+        for service_name in services:
+            task = asyncio.create_task(execute_on_service(service_name))
+            active_tasks[service_name] = task
+
+        # Monitor and yield chunks as they arrive
+        completed_services = set()
+
+        while len(completed_services) < len(services):
+            try:
+                # Wait for next chunk with timeout
+                chunk_json = await asyncio.wait_for(chunk_queue.get(), timeout=1.0)
+
+                # Parse to check if service completed
+                chunk_data = json.loads(chunk_json)
+                if chunk_data.get("done"):
+                    completed_services.add(chunk_data["service"])
+
+                # Yield the chunk
+                yield chunk_json
+
+            except asyncio.TimeoutError:
+                # No chunks received in 1 second, check if all tasks are still running
+                if all(task.done() for task in active_tasks.values()):
+                    # All tasks completed, check if we missed completion signals
+                    break
+                # Otherwise continue waiting
+                continue
+
+        # Ensure all tasks complete
+        await asyncio.gather(*active_tasks.values(), return_exceptions=True)
+
+        # Drain any remaining chunks in queue
+        while not chunk_queue.empty():
+            try:
+                chunk_json = chunk_queue.get_nowait()
+                yield chunk_json
+            except asyncio.QueueEmpty:
+                break
+
+        self.logger.info(f"Broadcast completed for {len(services)} services")
 
     async def _check_service_health(self, service_name: str) -> bool:
         """

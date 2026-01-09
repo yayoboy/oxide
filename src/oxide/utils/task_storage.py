@@ -71,7 +71,8 @@ class TaskStorage:
         files: Optional[List[str]] = None,
         preferences: Optional[Dict[str, Any]] = None,
         service: Optional[str] = None,
-        task_type: Optional[str] = None
+        task_type: Optional[str] = None,
+        execution_mode: str = "single"
     ) -> Dict[str, Any]:
         """
         Add a new task to storage.
@@ -83,6 +84,7 @@ class TaskStorage:
             preferences: Optional routing preferences
             service: Service that will execute the task
             task_type: Type of task
+            execution_mode: Execution mode (single, parallel, broadcast_all)
 
         Returns:
             Created task record
@@ -97,8 +99,10 @@ class TaskStorage:
             "preferences": preferences or {},
             "service": service,
             "task_type": task_type,
+            "execution_mode": execution_mode,
             "result": None,
             "error": None,
+            "broadcast_results": [],  # For broadcast_all mode: list of {service, result, error, chunks, completed_at}
             "created_at": datetime.now().timestamp(),
             "started_at": None,
             "completed_at": None,
@@ -108,7 +112,7 @@ class TaskStorage:
         tasks[task_id] = task_record
         self._write_tasks(tasks)
 
-        self.logger.debug(f"Added task: {task_id}")
+        self.logger.debug(f"Added task: {task_id} (mode: {execution_mode})")
         return task_record
 
     def update_task(
@@ -163,6 +167,59 @@ class TaskStorage:
 
         self._write_tasks(tasks)
         self.logger.debug(f"Updated task: {task_id} (status: {status})")
+
+    def add_broadcast_result(
+        self,
+        task_id: str,
+        service: str,
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+        chunks: int = 0
+    ):
+        """
+        Add a result from a specific service in broadcast_all mode.
+
+        Args:
+            task_id: Task identifier
+            service: Service name that produced this result
+            result: Result text from the service
+            error: Error message if the service failed
+            chunks: Number of chunks received from this service
+        """
+        tasks = self._read_tasks()
+
+        if task_id not in tasks:
+            self.logger.warning(f"Task not found: {task_id}")
+            return
+
+        # Initialize broadcast_results if it doesn't exist (backward compatibility)
+        if "broadcast_results" not in tasks[task_id]:
+            tasks[task_id]["broadcast_results"] = []
+
+        # Check if this service already has a result
+        existing_idx = None
+        for idx, br in enumerate(tasks[task_id]["broadcast_results"]):
+            if br.get("service") == service:
+                existing_idx = idx
+                break
+
+        broadcast_result = {
+            "service": service,
+            "result": result,
+            "error": error,
+            "chunks": chunks,
+            "completed_at": datetime.now().timestamp()
+        }
+
+        if existing_idx is not None:
+            # Update existing result
+            tasks[task_id]["broadcast_results"][existing_idx] = broadcast_result
+        else:
+            # Add new result
+            tasks[task_id]["broadcast_results"].append(broadcast_result)
+
+        self._write_tasks(tasks)
+        self.logger.debug(f"Added broadcast result for task {task_id} from {service} ({chunks} chunks)")
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific task by ID."""

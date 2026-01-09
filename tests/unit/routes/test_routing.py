@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.oxide.web.backend.routes.routing import router
+from oxide.web.backend.routes.routing import router
 
 
 @pytest.fixture

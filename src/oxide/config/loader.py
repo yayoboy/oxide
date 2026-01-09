@@ -211,10 +211,17 @@ def load_yaml_file(file_path: Path) -> Dict[str, Any]:
 
 def load_config(config_path: Optional[Path] = None) -> Config:
     """
-    Load Oxide configuration from YAML file.
+    Load Oxide configuration from SQLite database first, fallback to YAML.
+
+    Strategy:
+    1. Try loading from SQLite database (~/.oxide/config.db)
+    2. If database is empty or doesn't exist, load from YAML
+    3. Log warnings when using fallback
+
+    This provides backward compatibility while allowing UI-based configuration.
 
     Args:
-        config_path: Path to config file (default: config/default.yaml)
+        config_path: Path to YAML config file (default: config/default.yaml)
 
     Returns:
         Validated Config object
@@ -222,14 +229,36 @@ def load_config(config_path: Optional[Path] = None) -> Config:
     Raises:
         ConfigError: If configuration is invalid
     """
+    from ..utils.logging import logger
+
+    # Try loading from SQLite first
+    try:
+        from ..utils.config_storage_sqlite import ConfigStorageSQLite
+
+        config_storage = ConfigStorageSQLite()
+
+        if config_storage.has_config():
+            logger.info("Loading configuration from SQLite database")
+            config = config_storage.load_config()
+            return config
+        else:
+            logger.warning("SQLite database is empty, falling back to YAML")
+
+    except Exception as e:
+        logger.warning(f"Failed to load from SQLite ({e}), falling back to YAML")
+
+    # Fallback to YAML
     if config_path is None:
         # Default to config/default.yaml relative to project root
         config_path = Path(__file__).parent.parent.parent.parent / "config" / "default.yaml"
 
+    logger.info(f"Loading configuration from YAML: {config_path}")
     data = load_yaml_file(config_path)
 
     try:
         config = Config(**data)
+        logger.warning("⚠️  Using YAML configuration - consider migrating to database for UI management")
+        logger.info("   Run: python -m oxide.config.migration to migrate")
         return config
     except Exception as e:
         raise ConfigError(f"Invalid configuration: {e}")

@@ -8,10 +8,15 @@ from pydantic import BaseModel, Field
 from typing import Dict, Optional
 import os
 from pathlib import Path
+import yaml
 
 from ....utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Configuration file path
+CONFIG_DIR = Path(__file__).parent.parent.parent.parent.parent.parent / "config"
+CONFIG_FILE = CONFIG_DIR / "default.yaml"
 
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
 
@@ -171,32 +176,66 @@ async def _test_openrouter_key(api_key: str) -> Dict:
 @router.post("/update/")
 async def update_api_key(request: APIKeyUpdate):
     """
-    Update API key for a service.
+    Update API key for a service by saving it to the configuration file.
 
-    NOTE: For security, API keys should be set via environment variables.
-    This endpoint provides guidance on how to set them properly.
+    WARNING: This stores the API key in plain text in config/default.yaml.
+    For production environments, use environment variables instead.
     """
     service = request.service.lower()
-    env_var_name = f"{service.upper()}_API_KEY"
+    api_key = request.api_key
 
-    # We don't actually store the API key - that would be insecure
-    # Instead, provide instructions for setting it via environment variable
-    return {
-        "success": False,
-        "message": "API keys cannot be set via web UI for security reasons.",
-        "instructions": {
-            "method": "environment_variable",
-            "variable_name": env_var_name,
-            "steps": [
-                f"1. Stop the Oxide server",
-                f"2. Set environment variable: export {env_var_name}='your_api_key_here'",
-                f"3. Restart the Oxide server",
-                f"4. Alternatively, add to your shell profile (.bashrc, .zshrc, etc.)"
-            ],
-            "docker_instructions": [
-                f"If using Docker, add to docker-compose.yml:",
-                f"  environment:",
-                f"    - {env_var_name}=your_api_key_here"
-            ]
+    try:
+        # Verify config file exists
+        if not CONFIG_FILE.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Configuration file not found: {CONFIG_FILE}"
+            )
+
+        # Read current configuration
+        with open(CONFIG_FILE, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # Check if service exists in config
+        if 'services' not in config or service not in config['services']:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Service '{service}' not found in configuration"
+            )
+
+        # Update the API key
+        config['services'][service]['api_key'] = api_key
+
+        # Write back to file
+        with open(CONFIG_FILE, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        logger.info(f"Updated API key for service: {service}")
+
+        # Set environment variable for immediate use (until restart)
+        env_var_name = f"{service.upper()}_API_KEY"
+        os.environ[env_var_name] = api_key
+
+        return {
+            "success": True,
+            "message": f"API key for {service} saved successfully.",
+            "details": {
+                "service": service,
+                "saved_to": str(CONFIG_FILE),
+                "requires_reload": True,
+                "reload_note": "Configuration has been updated. Restart Oxide backend or trigger a config reload for full effect."
+            }
         }
-    }
+
+    except yaml.YAMLError as e:
+        logger.error(f"YAML parsing error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error parsing configuration file: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error updating API key for {service}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update API key: {str(e)}"
+        )
